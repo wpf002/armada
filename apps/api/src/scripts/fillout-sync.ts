@@ -81,9 +81,10 @@ async function main() {
       console.log(`    ${form.name}: pulled ${pulled}, new ${created}`);
     } catch (err) {
       const msg = (err as Error).message;
-      // Draft/unpublished forms have no published version to query.
+      // Verified in Fillout's own editor: these forms fail to load there too,
+      // so the snapshot genuinely doesn't exist — it isn't an API-only quirk.
       const reason = msg.includes('flow snapshot')
-        ? 'not published yet — no submissions'
+        ? "Fillout can't load this form (no flow snapshot)"
         : msg;
       console.log(`    ${form.name}: skipped (${reason})`);
     }

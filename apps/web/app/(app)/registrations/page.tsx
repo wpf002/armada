@@ -145,9 +145,9 @@ export default function RegistrationsPage() {
               <>
                 <span className="block font-medium text-ink">No Responses Retrieved</span>
                 <span className="mt-1 block">
-                  Fillout&apos;s API returns &ldquo;Could not find flow snapshot&rdquo; for this
-                  form, so its responses can&apos;t be pulled in. Re-publishing it in Fillout
-                  usually fixes this; otherwise export the responses to CSV and import them.
+                  This form fails to load in Fillout&apos;s own editor, so neither the app nor
+                  the API can read its responses. Fillout support would need to repair it, or
+                  the form can be rebuilt.
                 </span>
               </>
             ) : (
