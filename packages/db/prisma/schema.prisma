@@ -1,0 +1,26 @@
+// Armada — Prisma schema.
+//
+// PHASE 0: placeholder only. The full identity-graph model (§5 of the roadmap —
+// Person, User, DiscipleshipGroup, GroupMembership, MentorRelationship, Interest,
+// FollowUp, FormSubmission, Event, EventRsvp, Note, AuditLog) lands in PHASE 1,
+// together with migrations and the partial unique indexes.
+//
+// Invariants that constrain this schema (see CLAUDE.md): one Person per human,
+// roles are edges, no hard deletes, groups identified by their leaders.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Placeholder so the client generates before Phase 1. Replaced by the full model.
+model HealthCheck {
+  id        String   @id @default(uuid())
+  ok        Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
