@@ -24,11 +24,19 @@ export default function HomePage() {
             : 'Member'}
       </p>
 
+      <p className="mb-2 font-expanded text-xs uppercase tracking-[0.2em] text-slate">Answers</p>
+      <div className="mb-6 grid grid-cols-2 gap-3">
+        <HomeCard href="/leaders" title="Leaders" subtitle="Who leads a group" />
+        <HomeCard href="/groups" title="Groups" subtitle="Who's in whose group" />
+        <HomeCard href="/mentors" title="Mentors" subtitle="Who mentors leaders" />
+        <HomeCard href="/pipeline" title="Discipleship" subtitle="Who wants in" />
+      </div>
+
+      <p className="mb-2 font-expanded text-xs uppercase tracking-[0.2em] text-slate">You</p>
       <div className="grid grid-cols-2 gap-3">
+        <HomeCard href="/dashboard" title="Dashboard" subtitle="Your work" />
         <HomeCard href="/directory" title="Directory" subtitle="Find anyone" />
         <HomeCard href="/me" title="My profile" subtitle="View & edit" />
-        <HomeCard href="/groups" title="Groups" subtitle="Hierarchy" />
-        <HomeCard href="/calendar" title="Calendar" subtitle="Coming soon" muted />
         {user?.role === 'ADMIN' && (
           <HomeCard href="/admin/intake" title="Intake queue" subtitle="New registrations" />
         )}

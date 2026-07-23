@@ -118,7 +118,14 @@ above per service. Production migrations run via `pnpm --filter @armada/db migra
   (link / create / ignore). Nightly reconcile + weekly metadata-drift run in `apps/worker` via
   secret-guarded internal endpoints; `register-webhook.ts` for deploy. Verified locally with
   simulated webhooks across all three bands; replaying a webhook creates nothing new.
-- **Phase 6 (pipeline + follow-up)** is next.
+- **Phase 6 ✅** — Pipeline + follow-up. The four §1 questions are one tap from home:
+  `/leaders` (who leads), `/groups` (who's in whose group), `/mentors` (who mentors leaders),
+  `/pipeline` (who wants discipling — an Open→In progress→Placed board). Follow-ups replace the
+  Reach Out column (owner + status + outcome). Role-aware `/dashboard`: leaders see their groups,
+  mentees, and open follow-ups; admins also see the actionable gaps (wants-discipling,
+  open-capacity leaders, unassigned people, groups without a mentor, stale follow-ups). Verified
+  against real data: 48 leaders, 12 mentors, 9 want discipling, 64 unassigned.
+- **Phase 7 (events calendar)** is next.
 
 ### Verify field visibility by role
 
