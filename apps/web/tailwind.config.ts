@@ -1,5 +1,5 @@
 import type { Config } from 'tailwindcss';
-import { colors, fonts } from '@armada/ui/tokens';
+import { colors } from '@armada/ui/tokens';
 
 /**
  * Brand tokens come from packages/ui (the single source of truth, pulled from
@@ -17,11 +17,13 @@ const config: Config = {
         olive: colors.olive,
         slate: colors.slate,
         'slate-dark': colors.slateDark,
+        'grey-200': colors.grey200,
+        'grey-300': colors.grey300,
       },
       fontFamily: {
-        sans: [fonts.sans],
-        expanded: [fonts.expanded],
-        display: [fonts.display],
+        sans: ['var(--font-archivo)', 'system-ui', 'sans-serif'],
+        expanded: ['var(--font-archivo)', 'system-ui', 'sans-serif'],
+        display: ['var(--font-archivo)', 'system-ui', 'sans-serif'],
       },
     },
   },

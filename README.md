@@ -98,7 +98,19 @@ above per service. Production migrations run via `pnpm --filter @armada/db migra
   the 8 collisions merged, uncertain pairs + orphaned mentees + placeholders parked in the review
   list. Merge endpoint `POST /admin/people/:id/merge` reassigns all edges, tombstones the source,
   and audit-logs. 10 resolution unit tests.
-- **Phase 3 (directory + profiles)** is next.
+- **Phase 3 ✅** — People API with **server-side field visibility**: `/people` (directory index),
+  `/people/:id` (scoped via `visibleFieldsFor` over live graph edges), `PATCH /people/:id`
+  (self/admin edit), `POST /people/:id/photo` (upload). Mobile-first PWA: login, home, directory
+  with **instant client-side search**, profile pages with `tel:`/`mailto:`/maps deep links,
+  self-edit + photo, bottom tab bar. Verified by a role smoke test (member/leader/admin each see
+  exactly the §6 fields — 7/7) and in the browser against the real 165-person import.
+- **Phase 4 (groups + radial hierarchy)** is next.
+
+### Verify field visibility by role
+
+```bash
+pnpm --filter @armada/api exec tsx src/scripts/verify-visibility.ts
+```
 
 ### Import the workbook
 

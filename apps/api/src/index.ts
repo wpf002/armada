@@ -1,10 +1,14 @@
+import { join } from 'node:path';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
 import { z } from 'zod';
 import { ARMADA_SHARED_VERSION } from '@armada/shared';
 import { auth } from './auth';
 import { requireAuth, requireRole } from './session';
 import { mergePeople } from './merge';
+import { registerPeopleRoutes } from './people';
 
 const envSchema = z.object({
   API_PORT: z.coerce.number().default(4000),
@@ -21,6 +25,11 @@ export async function buildServer() {
     origin: env.WEB_ORIGIN.split(',').map((o) => o.trim()),
     credentials: true,
   });
+
+  await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });
+
+  const uploadDir = process.env.UPLOAD_DIR ?? join(process.cwd(), 'uploads');
+  await app.register(fastifyStatic, { root: uploadDir, prefix: '/uploads/' });
 
   // --- Better Auth handler: mount all /api/auth/* routes ------------------
   app.route({
@@ -76,6 +85,8 @@ export async function buildServer() {
     ok: true,
     scope: 'admin',
   }));
+
+  registerPeopleRoutes(app);
 
   // Identity resolution: merge a duplicate person into another (§8). Admin only.
   app.post('/admin/people/:id/merge', { preHandler: requireRole('ADMIN') }, async (request, reply) => {
