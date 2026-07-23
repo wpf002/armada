@@ -43,8 +43,8 @@ export default function DirectoryPage() {
   return (
     <div className="px-4 pt-4">
       <header className="mb-3">
-        <p className="font-expanded text-xs uppercase tracking-[0.2em] text-slate">Directory</p>
-        <h1 className="font-display text-2xl text-ink">{people.length} people</h1>
+        <p className="eyebrow">Directory</p>
+        <h1 className="display text-2xl text-ink">{people.length} people</h1>
       </header>
 
       <input
@@ -52,13 +52,13 @@ export default function DirectoryPage() {
         placeholder="Search name, group, church…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        className="mb-3 min-h-[44px] w-full rounded-lg border border-grey-300 bg-white px-3 outline-none focus:border-deep"
+        className="mb-3 min-h-[44px] w-full rounded-lg border border-line bg-surface px-3 outline-none focus:border-deep"
       />
 
-      {loading && <p className="text-slate">Loading…</p>}
+      {loading && <p className="text-muted">Loading…</p>}
       {error && <p className="text-red-600">{error}</p>}
 
-      <ul className="flex flex-col divide-y divide-grey-200">
+      <ul className="flex flex-col divide-y divide-line">
         {results.map((p) => {
           const primary = p.groups[0];
           return (
@@ -72,7 +72,7 @@ export default function DirectoryPage() {
                   <span className="block truncate font-medium text-ink-soft">
                     {personDisplayName(p)}
                   </span>
-                  <span className="block truncate text-sm text-slate">
+                  <span className="block truncate text-sm text-muted">
                     {primary ? primary.displayName : 'No group'}
                     {p.churchAffiliation ? ` · ${p.churchAffiliation}` : ''}
                   </span>
@@ -87,7 +87,7 @@ export default function DirectoryPage() {
           );
         })}
         {!loading && results.length === 0 && (
-          <li className="py-6 text-center text-slate">No matches.</li>
+          <li className="py-6 text-center text-muted">No matches.</li>
         )}
       </ul>
     </div>

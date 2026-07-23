@@ -23,7 +23,7 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
   useEffect(() => load(), [load]);
 
   if (error) return <p className="p-5 text-red-600">{error}</p>;
-  if (!group) return <p className="p-5 text-slate">Loading…</p>;
+  if (!group) return <p className="p-5 text-muted">Loading…</p>;
 
   // Admins always; a leader of THIS group may manage its membership.
   const canManage =
@@ -36,12 +36,12 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <div className="px-5 pt-4">
-      <Link href="/groups" className="text-sm text-slate">
+      <Link href="/groups" className="text-sm text-muted">
         ← Groups
       </Link>
-      <h1 className="mt-2 font-display text-2xl text-ink">{group.displayName}</h1>
+      <h1 className="mt-2 display text-2xl text-ink">{group.displayName}</h1>
       {(group.meetingDay || group.location) && (
-        <p className="text-sm text-slate">
+        <p className="text-sm text-muted">
           {[group.meetingDay, group.meetingTime, group.location].filter(Boolean).join(' · ')}
         </p>
       )}
@@ -90,8 +90,8 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-6">
-      <p className="mb-2 text-xs uppercase tracking-wide text-slate">{title}</p>
-      <div className="flex flex-col divide-y divide-grey-200">{children}</div>
+      <p className="mb-2 text-xs uppercase tracking-wide text-muted">{title}</p>
+      <div className="flex flex-col divide-y divide-line">{children}</div>
     </section>
   );
 }
@@ -111,10 +111,10 @@ function MemberRow({
     <div className="flex items-center justify-between py-2">
       <Link href={`/people/${personId}`} className="min-w-0">
         <span className="block truncate text-ink-soft">{name}</span>
-        {sub && <span className="text-xs text-slate">{sub}</span>}
+        {sub && <span className="text-xs text-muted">{sub}</span>}
       </Link>
       {onRemove && (
-        <button onClick={onRemove} className="text-sm text-slate hover:text-red-600">
+        <button onClick={onRemove} className="text-sm text-muted hover:text-red-600">
           remove
         </button>
       )}
@@ -144,13 +144,13 @@ function AddMember({ groupId, onadded }: { groupId: string; onadded: () => void 
   }
 
   return (
-    <div className="mt-3 rounded-xl border border-grey-200 bg-white p-3">
+    <div className="mt-3 rounded-card border border-line bg-surface p-3">
       <div className="mb-2 flex gap-2 text-sm">
         {(['DISCIPLE', 'LEADER', 'CO_LEADER'] as const).map((r) => (
           <button
             key={r}
             onClick={() => setRole(r)}
-            className={`rounded-full px-3 py-1 ${role === r ? 'bg-deep text-cream' : 'bg-grey-200 text-slate-dark'}`}
+            className={`rounded-full px-3 py-1 ${role === r ? 'bg-deep text-cream' : 'bg-sand text-ink-soft'}`}
           >
             {r.toLowerCase().replace('_', '-')}
           </button>
@@ -160,9 +160,9 @@ function AddMember({ groupId, onadded }: { groupId: string; onadded: () => void 
         placeholder="Search people…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        className="min-h-[44px] w-full rounded-lg border border-grey-300 px-3"
+        className="min-h-[44px] w-full rounded-lg border border-line px-3"
       />
-      <ul className="mt-2 flex flex-col divide-y divide-grey-200">
+      <ul className="mt-2 flex flex-col divide-y divide-line">
         {filtered.map((p) => (
           <li key={p.id} className="flex items-center justify-between py-2">
             <span className="text-ink-soft">{personDisplayName(p)}</span>

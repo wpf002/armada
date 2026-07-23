@@ -33,20 +33,20 @@ export default function PipelinePage() {
 
   return (
     <div className="px-4 pt-4">
-      <p className="font-expanded text-xs uppercase tracking-[0.2em] text-slate">Discipleship</p>
-      <h1 className="mb-3 font-display text-2xl text-ink">Wants to be discipled</h1>
+      <p className="eyebrow">Discipleship</p>
+      <h1 className="mb-3 display text-2xl text-ink">Wants to be discipled</h1>
 
       <div className="flex flex-col gap-5">
         {COLUMNS.map((col) => {
           const cards = items.filter((i) => i.status === col.key);
           return (
             <section key={col.key}>
-              <p className="mb-2 text-xs uppercase tracking-wide text-slate">
+              <p className="mb-2 text-xs uppercase tracking-wide text-muted">
                 {col.label} · {cards.length}
               </p>
               <div className="flex flex-col gap-2">
                 {cards.map((i) => (
-                  <div key={i.id} className="rounded-xl border border-grey-200 bg-white p-3">
+                  <div key={i.id} className="rounded-card border border-line bg-surface p-3">
                     <div className="flex items-center justify-between">
                       <Link href={`/people/${i.person.id}`} className="font-medium text-ink-soft">
                         {i.person.name}
@@ -54,19 +54,19 @@ export default function PipelinePage() {
                       {col.next && (
                         <button
                           onClick={() => move(i.id, col.next!)}
-                          className="rounded-lg bg-deep px-3 py-1 text-sm text-cream"
+                          className="rounded-full bg-deep px-3 py-1 text-sm text-cream"
                         >
                           → {col.next === 'IN_PROGRESS' ? 'Start' : 'Place'}
                         </button>
                       )}
                     </div>
-                    {i.notes && <p className="mt-1 text-sm text-slate">{i.notes}</p>}
+                    {i.notes && <p className="mt-1 text-sm text-muted">{i.notes}</p>}
                     {i.assignedGroup && (
                       <p className="mt-1 text-sm text-deep">{i.assignedGroup.displayName}</p>
                     )}
                   </div>
                 ))}
-                {cards.length === 0 && <p className="text-sm text-slate">None.</p>}
+                {cards.length === 0 && <p className="text-sm text-muted">None.</p>}
               </div>
             </section>
           );

@@ -7,6 +7,62 @@
 }
 
 body {
-  background-color: theme('colors.cream');
-  color: theme('colors.ink-soft');
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+@layer components {
+  /* Wide all-caps eyebrow — the Armada section label. */
+  .eyebrow {
+    font-variation-settings: 'wdth' 118;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-weight: 600;
+    font-size: 0.68rem;
+    color: theme('colors.muted');
+  }
+
+  /* Heavy headline. */
+  .display {
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.03;
+    color: theme('colors.ink');
+  }
+
+  /* Slab-serif wordmark lockup. */
+  .wordmark {
+    font-family: theme('fontFamily.slab');
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    line-height: 0.92;
+    color: theme('colors.ink');
+  }
+
+  /* Olive pill CTA, matching the site's "Get Connected" button. */
+  .btn-olive {
+    @apply inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-olive px-5 font-medium text-cream transition-colors;
+  }
+  .btn-olive:hover {
+    background-color: theme('colors.olive-soft');
+  }
+  .btn-deep {
+    @apply inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-deep px-5 font-medium text-cream transition-colors;
+  }
+  .btn-ghost {
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full border border-line px-4 font-medium text-ink-soft transition-colors;
+  }
+
+  .card {
+    @apply rounded-card border border-line bg-surface shadow-card;
+  }
+
+  /* Deep "ocean" surface for the hero — gradient stands in for brand photography. */
+  .ocean {
+    background:
+      radial-gradient(120% 90% at 85% -10%, rgba(111, 112, 81, 0.35) 0%, transparent 55%),
+      radial-gradient(120% 120% at 0% 120%, rgba(117, 134, 150, 0.4) 0%, transparent 50%),
+      linear-gradient(160deg, #1c4c57 0%, #153a43 55%, #10303a 100%);
+  }
 }

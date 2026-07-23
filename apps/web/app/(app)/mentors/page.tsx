@@ -17,18 +17,18 @@ export default function MentorsPage() {
   }, []);
   return (
     <div className="px-4 pt-4">
-      <p className="font-expanded text-xs uppercase tracking-[0.2em] text-slate">Mentors</p>
-      <h1 className="mb-3 font-display text-2xl text-ink">{mentors.length} mentoring leaders</h1>
+      <p className="eyebrow">Mentors</p>
+      <h1 className="mb-3 display text-2xl text-ink">{mentors.length} mentoring leaders</h1>
       <ul className="flex flex-col gap-3">
         {mentors.map((m) => (
-          <li key={m.id} className="rounded-xl border border-grey-200 bg-white p-4">
+          <li key={m.id} className="rounded-card border border-line bg-surface p-4">
             <Link href={`/people/${m.id}`} className="font-medium text-ink-soft">
               {m.name}
             </Link>
-            <ul className="mt-1 flex flex-wrap gap-x-2 text-sm text-slate">
+            <ul className="mt-1 flex flex-wrap gap-x-2 text-sm text-muted">
               {m.mentees.map((x, i) => (
                 <li key={x.id}>
-                  <Link href={`/people/${x.id}`} className="text-slate-dark">
+                  <Link href={`/people/${x.id}`} className="text-ink-soft">
                     {x.name}
                   </Link>
                   {i < m.mentees.length - 1 && ' ·'}

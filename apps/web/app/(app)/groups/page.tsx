@@ -28,13 +28,13 @@ export default function GroupsPage() {
     <div className="px-4 pt-4">
       <header className="mb-3 flex items-end justify-between">
         <div>
-          <p className="font-expanded text-xs uppercase tracking-[0.2em] text-slate">Groups</p>
-          <h1 className="font-display text-2xl text-ink">
+          <p className="eyebrow">Groups</p>
+          <h1 className="display text-2xl text-ink">
             {data ? `${data.groups.length} groups` : 'Hierarchy'}
           </h1>
         </div>
         {data?.fullGraph && (
-          <label className="flex items-center gap-2 text-sm text-slate-dark">
+          <label className="flex items-center gap-2 text-sm text-ink-soft">
             <input
               type="checkbox"
               checked={showMentors}
@@ -46,11 +46,12 @@ export default function GroupsPage() {
       </header>
 
       {error && <p className="text-red-600">{error}</p>}
-      {!data && !error && <p className="text-slate">Loading…</p>}
+      {!data && !error && <p className="text-muted">Loading…</p>}
 
       {data &&
         (wide ? (
-          <div className="rounded-2xl border border-grey-200 bg-white p-2">
+          /* Break out of the narrow column so the diagram has room to breathe. */
+          <div className="md:mx-[calc(50%-50vw)] md:w-screen md:px-6">
             <HierarchyGraph hierarchy={data} showMentors={showMentors} />
           </div>
         ) : (
@@ -58,7 +59,7 @@ export default function GroupsPage() {
         ))}
 
       {data && !data.fullGraph && (
-        <p className="mt-4 text-sm text-slate">
+        <p className="mt-4 text-sm text-muted">
           You&apos;re seeing your own group. Leaders and mentors see the whole org.
         </p>
       )}

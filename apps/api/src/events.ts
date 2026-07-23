@@ -35,11 +35,12 @@ function verifyCalToken(token: string): string | null {
 
 // --- Armada Night recurrence ----------------------------------------------
 function lastMondayOfMonth(year: number, month: number): Date {
-  // month is 0-indexed. Walk back from the last day to Monday, then set 7pm Central
-  // (≈ 00:00 UTC next day for CDT). The client renders the correct local time.
+  // month is 0-indexed. Walk back from the last day of the month to Monday.
   const d = new Date(Date.UTC(year, month + 1, 0));
   while (d.getUTCDay() !== 1) d.setUTCDate(d.getUTCDate() - 1);
-  return new Date(Date.UTC(year, month, d.getUTCDate(), 0, 0, 0));
+  // Armada Night is 7pm Central. Hour 24 normalizes to 00:00 UTC the next day,
+  // which is 19:00 on the Monday in CDT (UTC-5) — so it renders as Monday evening.
+  return new Date(Date.UTC(year, month, d.getUTCDate(), 24, 0, 0));
 }
 
 // --- ICS generation --------------------------------------------------------

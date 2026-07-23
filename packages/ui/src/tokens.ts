@@ -32,6 +32,11 @@ export const colors = {
   grey200: '#e2e2e2',
   grey300: '#c8c8c8',
   grey400: '#b4b4b4',
+  /** Warm neutrals tuned to the cream background. */
+  sand: '#efe8dd',
+  line: '#e7dfd3',
+  muted: '#8c8578',
+  surface: '#fffdfa',
 } as const;
 
 export const fonts = {

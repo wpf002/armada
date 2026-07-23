@@ -33,7 +33,7 @@ export default function DashboardPage() {
     api<{ followups: FollowUp[] }>('/followups?scope=mine').then((r) => setFollowups(r.followups));
   }, []);
 
-  if (!d) return <p className="p-5 text-slate">Loading…</p>;
+  if (!d) return <p className="p-5 text-muted">Loading…</p>;
 
   async function complete(id: string) {
     await api(`/followups/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'COMPLETED' }) });
@@ -42,12 +42,12 @@ export default function DashboardPage() {
 
   return (
     <div className="px-4 pt-4">
-      <p className="font-expanded text-xs uppercase tracking-[0.2em] text-slate">Dashboard</p>
-      <h1 className="mb-4 font-display text-2xl text-ink">Your work</h1>
+      <p className="eyebrow">Dashboard</p>
+      <h1 className="mb-4 display text-2xl text-ink">Your work</h1>
 
       {d.admin && (
         <>
-          <p className="mb-2 text-xs uppercase tracking-wide text-slate">Org gaps</p>
+          <p className="mb-2 text-xs uppercase tracking-wide text-muted">Org gaps</p>
           <div className="mb-6 grid grid-cols-2 gap-3">
             <Stat n={d.admin.wantsDiscipleship} label="want discipling" href="/pipeline" />
             <Stat n={d.admin.openCapacityLeaders} label="leaders with open capacity" href="/groups" />
@@ -58,7 +58,7 @@ export default function DashboardPage() {
         </>
       )}
 
-      <p className="mb-2 text-xs uppercase tracking-wide text-slate">My groups</p>
+      <p className="mb-2 text-xs uppercase tracking-wide text-muted">My groups</p>
       <ul className="mb-4 flex flex-col gap-1">
         {d.myGroups.map((g) => (
           <li key={g.id}>
@@ -67,12 +67,12 @@ export default function DashboardPage() {
             </Link>
           </li>
         ))}
-        {d.myGroups.length === 0 && <li className="text-sm text-slate">None.</li>}
+        {d.myGroups.length === 0 && <li className="text-sm text-muted">None.</li>}
       </ul>
 
       {d.myMentees.length > 0 && (
         <>
-          <p className="mb-2 text-xs uppercase tracking-wide text-slate">My mentees</p>
+          <p className="mb-2 text-xs uppercase tracking-wide text-muted">My mentees</p>
           <ul className="mb-4 flex flex-col gap-1">
             {d.myMentees.map((m) => (
               <li key={m.id}>
@@ -85,12 +85,12 @@ export default function DashboardPage() {
         </>
       )}
 
-      <p className="mb-2 text-xs uppercase tracking-wide text-slate">
+      <p className="mb-2 text-xs uppercase tracking-wide text-muted">
         My follow-ups ({followups.length})
       </p>
       <ul className="flex flex-col gap-2">
         {followups.map((f) => (
-          <li key={f.id} className="flex items-center justify-between rounded-xl border border-grey-200 bg-white p-3">
+          <li key={f.id} className="flex items-center justify-between rounded-card border border-line bg-surface p-3">
             <span>
               <Link href={`/people/${f.subject.id}`} className="block text-ink-soft">
                 {f.subject.name}
@@ -101,12 +101,12 @@ export default function DashboardPage() {
                 </a>
               )}
             </span>
-            <button onClick={() => complete(f.id)} className="rounded-lg bg-deep px-3 py-1 text-sm text-cream">
+            <button onClick={() => complete(f.id)} className="rounded-full bg-deep px-3 py-1 text-sm text-cream">
               Done
             </button>
           </li>
         ))}
-        {followups.length === 0 && <li className="text-sm text-slate">No open follow-ups.</li>}
+        {followups.length === 0 && <li className="text-sm text-muted">No open follow-ups.</li>}
       </ul>
     </div>
   );
@@ -114,9 +114,9 @@ export default function DashboardPage() {
 
 function Stat({ n, label, href }: { n: number; label: string; href?: string }) {
   const inner = (
-    <div className="rounded-xl border border-grey-200 bg-white p-4">
-      <div className="font-display text-3xl text-deep">{n}</div>
-      <div className="text-sm text-slate">{label}</div>
+    <div className="rounded-card border border-line bg-surface p-4">
+      <div className="display text-3xl text-deep">{n}</div>
+      <div className="text-sm text-muted">{label}</div>
     </div>
   );
   return href ? <Link href={href}>{inner}</Link> : inner;

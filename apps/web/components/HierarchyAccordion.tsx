@@ -15,7 +15,7 @@ export function HierarchyAccordion({ hierarchy }: { hierarchy: Hierarchy }) {
       {hierarchy.groups.map((g) => (
         <GroupRow key={g.id} g={g} />
       ))}
-      {hierarchy.groups.length === 0 && <p className="text-slate">No groups to show.</p>}
+      {hierarchy.groups.length === 0 && <p className="text-muted">No groups to show.</p>}
     </div>
   );
 }
@@ -23,14 +23,14 @@ export function HierarchyAccordion({ hierarchy }: { hierarchy: Hierarchy }) {
 function GroupRow({ g }: { g: Hierarchy['groups'][number] }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-xl border border-grey-200 bg-white">
+    <div className="rounded-card border border-line bg-surface">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
       >
         <span className="min-w-0">
           <span className="block truncate font-medium text-ink-soft">{g.displayName}</span>
-          <span className="text-xs text-slate">
+          <span className="text-xs text-muted">
             {g.leaders.length} leader{g.leaders.length === 1 ? '' : 's'} · {g.disciples.length}{' '}
             disciple{g.disciples.length === 1 ? '' : 's'}
           </span>
@@ -39,30 +39,30 @@ function GroupRow({ g }: { g: Hierarchy['groups'][number] }) {
           {g.openCapacity && (
             <span className="rounded-full bg-olive/15 px-2 py-0.5 text-[11px] text-olive">open</span>
           )}
-          <span className="text-slate">{open ? '▾' : '▸'}</span>
+          <span className="text-muted">{open ? '▾' : '▸'}</span>
         </span>
       </button>
       {open && (
-        <div className="border-t border-grey-200 px-4 py-3">
-          <p className="mb-1 text-xs uppercase tracking-wide text-slate">Leaders</p>
+        <div className="border-t border-line px-4 py-3">
+          <p className="mb-1 text-xs uppercase tracking-wide text-muted">Leaders</p>
           <ul className="mb-3 flex flex-col gap-1">
             {g.leaders.map((l) => (
               <li key={l.personId}>
                 <Link href={`/people/${l.personId}`} className="text-ink-soft">
                   {l.name}
-                  {l.role === 'CO_LEADER' && <span className="text-slate"> · co-leader</span>}
+                  {l.role === 'CO_LEADER' && <span className="text-muted"> · co-leader</span>}
                 </Link>
               </li>
             ))}
           </ul>
-          <p className="mb-1 text-xs uppercase tracking-wide text-slate">Disciples</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-muted">Disciples</p>
           {g.disciples.length === 0 ? (
             <p className="text-sm text-olive">Open capacity — no disciples yet.</p>
           ) : (
             <ul className="flex flex-col gap-1">
               {g.disciples.map((d) => (
                 <li key={d.personId}>
-                  <Link href={`/people/${d.personId}`} className="text-slate-dark">
+                  <Link href={`/people/${d.personId}`} className="text-ink-soft">
                     {d.name}
                   </Link>
                 </li>

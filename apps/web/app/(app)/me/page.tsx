@@ -22,7 +22,7 @@ export default function MePage() {
     api<{ person: Profile }>(`/people/${user.personId}`).then((r) => setPerson(r.person));
   }, [user?.personId]);
 
-  if (!user || !person) return <p className="p-5 text-slate">Loading…</p>;
+  if (!user || !person) return <p className="p-5 text-muted">Loading…</p>;
 
   function set<K extends keyof Profile>(k: K, v: Profile[K]) {
     setPerson((p) => (p ? { ...p, [k]: v } : p));
@@ -82,8 +82,8 @@ export default function MePage() {
           </span>
         </button>
         <div>
-          <h1 className="font-display text-2xl text-ink">{personDisplayName(person)}</h1>
-          <p className="text-sm text-slate">{user.email}</p>
+          <h1 className="display text-2xl text-ink">{personDisplayName(person)}</h1>
+          <p className="text-sm text-muted">{user.email}</p>
         </div>
       </header>
       <input
@@ -101,11 +101,11 @@ export default function MePage() {
         <Field label="Occupation" value={person.occupation ?? ''} onChange={(v) => set('occupation', v)} />
         <Field label="Church" value={person.churchAffiliation ?? ''} onChange={(v) => set('churchAffiliation', v)} />
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-slate-dark">Marital status</span>
+          <span className="text-ink-soft">Marital status</span>
           <select
             value={person.maritalStatus ?? ''}
             onChange={(e) => set('maritalStatus', e.target.value || null)}
-            className="min-h-[44px] rounded-lg border border-grey-300 bg-white px-3"
+            className="min-h-[44px] rounded-lg border border-line bg-surface px-3"
           >
             {MARITAL.map((m) => (
               <option key={m} value={m}>
@@ -115,20 +115,20 @@ export default function MePage() {
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-slate-dark">Bio</span>
+          <span className="text-ink-soft">Bio</span>
           <textarea
             value={person.bio ?? ''}
             onChange={(e) => set('bio', e.target.value)}
             rows={3}
-            className="rounded-lg border border-grey-300 bg-white px-3 py-2"
+            className="rounded-lg border border-line bg-surface px-3 py-2"
           />
         </label>
 
-        {msg && <p className="text-sm text-slate-dark">{msg}</p>}
+        {msg && <p className="text-sm text-ink-soft">{msg}</p>}
         <button
           type="submit"
           disabled={saving}
-          className="min-h-[48px] rounded-lg bg-deep font-medium text-cream disabled:opacity-60"
+          className="min-h-[48px] rounded-full bg-deep font-medium text-cream disabled:opacity-60"
         >
           {saving ? 'Saving…' : 'Save changes'}
         </button>
@@ -139,7 +139,7 @@ export default function MePage() {
           await signOut();
           window.location.assign('/login');
         }}
-        className="mt-6 w-full py-3 text-sm text-slate"
+        className="mt-6 w-full py-3 text-sm text-muted"
       >
         Sign out
       </button>
@@ -158,11 +158,11 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1 text-sm">
-      <span className="text-slate-dark">{label}</span>
+      <span className="text-ink-soft">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="min-h-[44px] rounded-lg border border-grey-300 bg-white px-3 outline-none focus:border-deep"
+        className="min-h-[44px] rounded-lg border border-line bg-surface px-3 outline-none focus:border-deep"
       />
     </label>
   );
