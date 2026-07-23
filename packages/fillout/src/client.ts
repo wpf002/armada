@@ -6,6 +6,8 @@
  * nightly reconcile in apps/worker against these methods.
  */
 
+// Verified against https://fillout.com/help/openapi.json (US region; the EU
+// base URL is https://eu-api.fillout.com/v1/api). Auth: `Bearer <api key>`.
 const BASE_URL = 'https://api.fillout.com/v1/api';
 
 export interface FilloutClientOptions {
@@ -45,16 +47,19 @@ export class FilloutClient {
     return this.get<T>('/forms');
   }
 
+  /** Form metadata (name + questions). Verified against Fillout's OpenAPI spec:
+   *  the path is `/forms/{formId}` — `/forms/{formId}/metadata` returns 404. */
   getFormMetadata<T = unknown>(formId: string): Promise<T> {
-    return this.get<T>(`/forms/${formId}/metadata`);
+    return this.get<T>(`/forms/${formId}`);
   }
 
+  /** `limit` is capped at 150 by the API; default 50. */
   getSubmissions(
     formId: string,
     params?: { limit?: number; afterDate?: string; offset?: number },
   ): Promise<{ responses: FilloutSubmission[]; totalResponses: number; pageCount: number }> {
     const q = new URLSearchParams();
-    if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.limit) q.set('limit', String(Math.min(params.limit, 150)));
     if (params?.afterDate) q.set('afterDate', params.afterDate);
     if (params?.offset) q.set('offset', String(params.offset));
     const suffix = q.toString() ? `?${q.toString()}` : '';
