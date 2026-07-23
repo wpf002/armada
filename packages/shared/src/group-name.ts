@@ -22,14 +22,14 @@ function displayName(p: LeaderName): string {
 
 /**
  * @param activeLeaders active LEADER / CO_LEADER memberships' people, any order.
- * @returns e.g. "Kyle Sullivan & Dillon Everett", "Kyle Sullivan's group",
- *          or "Unassigned group" when there is no active leader.
+ * @returns e.g. "Kyle Sullivan & Dillon Everett", "Kyle Sullivan's Group",
+ *          or "Unassigned Group" when there is no active leader.
  */
 export function deriveGroupDisplayName(activeLeaders: LeaderName[]): string {
   const names = activeLeaders.map(displayName).filter(Boolean);
 
-  if (names.length === 0) return 'Unassigned group';
-  if (names.length === 1) return `${names[0]}'s group`;
+  if (names.length === 0) return 'Unassigned Group';
+  if (names.length === 1) return `${names[0]}'s Group`;
   if (names.length === 2) return `${names[0]} & ${names[1]}`;
 
   const last = names[names.length - 1];

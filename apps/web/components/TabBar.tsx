@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 function Icon({ name, active }: { name: string; active: boolean }) {
-  const s = active ? '#153a43' : '#8c8578';
+  const s = active ? '#42432e' : '#8c8578';
   const props = { width: 22, height: 22, fill: 'none', stroke: s, strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
   switch (name) {
     case 'home':

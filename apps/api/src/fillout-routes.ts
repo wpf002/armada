@@ -77,6 +77,83 @@ export async function metadataDrift(): Promise<{
 }
 
 export function registerFilloutRoutes(app: FastifyInstance) {
+  // --- Everyone who filled out the Armada registration form ---
+  // Sourced from people carrying registration answers (imported sign-ups plus
+  // anything the live Fillout webhook has created), newest first.
+  app.get('/registrations', { preHandler: requireRole('ADMIN') }, async () => {
+    const people = await prisma.person.findMany({
+      where: {
+        mergedIntoId: null,
+        status: { not: 'REMOVED' },
+        OR: [
+          { lookingFor: { not: null } },
+          { heardAboutUs: { not: null } },
+          { attendedBefore: { not: null } },
+          { submissions: { some: {} } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 300,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        preferredName: true,
+        email: true,
+        phone: true,
+        churchAffiliation: true,
+        lookingFor: true,
+        status: true,
+        createdAt: true,
+        memberships: { where: { leftAt: null }, select: { id: true } },
+        submissions: { select: { submittedAt: true }, orderBy: { submittedAt: 'desc' }, take: 1 },
+      },
+    });
+    return {
+      registrants: people.map((p) => ({
+        submissionId: p.id,
+        personId: p.id,
+        submittedAt: p.submissions[0]?.submittedAt ?? p.createdAt,
+        status: p.memberships.length > 0 ? 'PLACED' : p.status,
+        name: `${p.preferredName?.trim() || p.firstName} ${p.lastName}`.trim(),
+        email: p.email,
+        phone: p.phone,
+        church: p.churchAffiliation,
+        lookingFor: p.lookingFor,
+      })),
+    };
+  });
+
+  // --- Is the live Fillout form actually wired up? ---
+  app.get('/registrations/connection', { preHandler: requireRole('ADMIN') }, async () => {
+    const apiKey = process.env.FILLOUT_API_KEY;
+    const stored = await prisma.formSubmission.count();
+    if (!apiKey) {
+      return {
+        connected: false,
+        formId: FILLOUT_FORM_ID,
+        message: `No FILLOUT_API_KEY set, so the live form isn't being polled. ${stored} submission${stored === 1 ? '' : 's'} stored locally. Add the key and register the webhook to go live.`,
+      };
+    }
+    try {
+      const client = new FilloutClient({ apiKey });
+      const meta = (await client.getFormMetadata(FILLOUT_FORM_ID)) as {
+        questions?: Array<{ id: string }>;
+      };
+      return {
+        connected: true,
+        formId: FILLOUT_FORM_ID,
+        message: `Connected to form ${FILLOUT_FORM_ID} (${meta.questions?.length ?? 0} questions). ${stored} submission${stored === 1 ? '' : 's'} received.`,
+      };
+    } catch (err) {
+      return {
+        connected: false,
+        formId: FILLOUT_FORM_ID,
+        message: `Could not reach Fillout: ${(err as Error).message}`,
+      };
+    }
+  });
+
   // --- Public webhook receiver: verify secret, persist, match, 200 fast ---
   app.post('/webhooks/fillout', async (request: FastifyRequest, reply: FastifyReply) => {
     if (!secretOk(request)) return reply.status(401).send({ error: 'bad secret' });

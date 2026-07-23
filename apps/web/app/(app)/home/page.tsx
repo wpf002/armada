@@ -107,7 +107,7 @@ export default function HomePage() {
           <div className="grid grid-cols-2 gap-2.5">
             <Link href="/directory" className="card px-4 py-4">
               <div className="font-slab text-3xl font-bold text-deep">{counts.people}</div>
-              <div className="mt-0.5 text-[13px] text-muted">In The Directory</div>
+              <div className="mt-0.5 text-[13px] text-muted">Members</div>
             </Link>
             <Link href="/groups" className="card px-4 py-4">
               <div className="font-slab text-3xl font-bold text-olive">{counts.groups}</div>
@@ -128,7 +128,7 @@ export default function HomePage() {
           />
           <Step n="02" title="Get Placed" title2 body="Join a discipleship group led by faithful men." />
           <Step n="03" title="Be Discipled" body="Walk with a leader who is themselves mentored." />
-          <Step n="04" title="Lead" body="Raise up the next group and keep the fleet moving." />
+          <Step n="04" title="Lead" body="Go and make disciples." />
         </div>
         <Link href="/pipeline" className="btn-olive mt-4 w-full">
           I Want To Be Discipled

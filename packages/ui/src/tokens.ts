@@ -17,13 +17,17 @@ export const colors = {
   ink: '#000000',
   inkSoft: '#181913',
   inkMuted: '#1a1b1f',
-  /** Deep nautical teal/green — the brand accent. */
-  deep: '#153a43',
+  /** Deep brand green — a darkened form of the wordmark green, for dark
+   *  surfaces (hero, primary buttons, date chips). */
+  deep: '#42432e',
+  deepMid: '#55573a',
+  deepDark: '#2c2d1e',
   /** Warm off-white / cream page background. */
   cream: '#f9f5f1',
   white: '#ffffff',
-  /** Olive secondary. */
-  olive: '#6f7051',
+  /** The official Armada green, taken from Armada_Wordmark_Green.svg. */
+  olive: '#6f704d',
+  oliveSoft: '#8a8b6d',
   /** Slate blue-grey — secondary text, disciple/grey nodes in the hierarchy. */
   slate: '#758696',
   slateDark: '#3a4554',

@@ -52,7 +52,7 @@ export default function GroupsPage() {
         ? `${leaders.length} Leaders`
         : view === 'mentors'
           ? `${mentors.length} Mentors`
-          : 'The Network';
+          : 'The Fleet';
 
   return (
     <div className="px-4 pt-5">
@@ -128,10 +128,7 @@ export default function GroupsPage() {
         {/* The network hierarchy */}
         {view === 'map' && data && (
           <>
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm text-muted">
-                Anchor At Center · Leaders On The Ring · Disciples Orbiting
-              </p>
+            <div className="mb-3 flex items-center justify-end">
               <label className="flex shrink-0 items-center gap-2 text-sm text-ink-soft">
                 <input
                   type="checkbox"

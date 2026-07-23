@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, personDisplayName, type DirectoryPerson, type GroupDetail } from '@/lib/api';
 import { useSession } from '@/lib/auth-client';
@@ -8,6 +9,7 @@ import type { SessionUser } from '@/lib/auth-client';
 
 export default function GroupPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const { data: session } = useSession();
   const user = session?.user as SessionUser | undefined;
   const [group, setGroup] = useState<GroupDetail | null>(null);
@@ -36,9 +38,9 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <div className="px-5 pt-4">
-      <Link href="/groups" className="text-sm text-muted">
-        ← Groups
-      </Link>
+      <button onClick={() => router.back()} className="text-sm text-muted">
+        ← Back
+      </button>
       <h1 className="mt-2 display text-2xl text-ink">{group.displayName}</h1>
       {(group.meetingDay || group.location) && (
         <p className="text-sm text-muted">

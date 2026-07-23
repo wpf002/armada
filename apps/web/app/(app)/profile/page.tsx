@@ -70,8 +70,8 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (user?.role === 'ADMIN') {
-      api<{ submissions: unknown[] }>('/admin/intake?status=NEEDS_REVIEW')
-        .then((r) => setIntake(r.submissions.length))
+      api<{ registrants: unknown[] }>('/registrations')
+        .then((r) => setIntake(r.registrants.length))
         .catch(() => {});
     }
   }, [user?.role]);
@@ -169,7 +169,7 @@ export default function ProfilePage() {
               tab === t ? 'bg-deep text-cream' : 'border border-line text-ink-soft'
             }`}
           >
-            {t === 'work' ? 'My Work' : 'My Details'}
+            {t === 'work' ? 'Overview' : 'Account'}
           </button>
         ))}
       </div>
@@ -219,12 +219,12 @@ export default function ProfilePage() {
                 )}
 
                 {isAdmin && intake > 0 && (
-                  <Link href="/admin/intake" className="flex items-center justify-between px-4 py-3">
+                  <Link href="/registrations" className="flex items-center justify-between px-4 py-3">
                     <span>
                       <span className="block font-medium text-ink">
-                        {intake} New Registration{intake === 1 ? '' : 's'}
+                        {intake} Registration{intake === 1 ? '' : 's'}
                       </span>
-                      <span className="text-sm text-muted">Review &amp; Place</span>
+                      <span className="text-sm text-muted">From The Armada Sign-Up Form</span>
                     </span>
                     <span className="text-muted">›</span>
                   </Link>
@@ -278,7 +278,7 @@ export default function ProfilePage() {
               <div className="grid grid-cols-2 gap-2.5">
                 <Stat n={dash.admin.wantsDiscipleship} label="Want Discipling" href="/pipeline" tone="olive" />
                 <Stat n={dash.admin.openCapacityLeaders} label="Open-Capacity Leaders" href="/groups" tone="deep" />
-                <Stat n={dash.admin.unassignedPeople} label="Unassigned" href="/admin/unassigned" />
+                <Stat n={dash.admin.unassignedPeople} label="Unassigned" href="/directory" />
                 <Stat n={dash.admin.groupsWithoutMentor} label="Groups Without A Mentor" href="/groups?view=mentors" />
               </div>
             </section>

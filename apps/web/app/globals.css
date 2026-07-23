@@ -61,8 +61,8 @@ body {
   /* Deep "ocean" surface for the hero — gradient stands in for brand photography. */
   .ocean {
     background:
-      radial-gradient(120% 90% at 85% -10%, rgba(111, 112, 81, 0.35) 0%, transparent 55%),
-      radial-gradient(120% 120% at 0% 120%, rgba(117, 134, 150, 0.4) 0%, transparent 50%),
-      linear-gradient(160deg, #1c4c57 0%, #153a43 55%, #10303a 100%);
+      radial-gradient(120% 90% at 85% -10%, rgba(138, 139, 109, 0.38) 0%, transparent 55%),
+      radial-gradient(120% 120% at 0% 120%, rgba(94, 99, 91, 0.45) 0%, transparent 50%),
+      linear-gradient(160deg, #55573a 0%, #42432e 55%, #2c2d1e 100%);
   }
 }

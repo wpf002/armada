@@ -4,14 +4,15 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Hierarchy } from '@/lib/api';
 
-// Matches the Armada org diagram: an anchor at center, dark leader nodes on a
-// ring with their names inside, grey disciple satellites orbiting each leader.
+// The Armada fleet diagram: anchor at center, dark leader nodes on a ring with
+// their names inside, grey disciple satellites orbiting each leader.
 const INK = '#141821';
 const GREY = '#b7bec6';
 const GREY_INK = '#20303b';
-const OLIVE = '#6f7051';
+const OLIVE = '#6f704d';
 const SPOKE = '#3a4048';
-const LEAF = '#9aa3ac';
+const ANCHOR_PATH =
+  'M256 40c-31 0-56 25-56 56 0 25 16 46 38 53v31h-44v44h44v150c-60-10-107-58-113-120h35l-60-80-60 80h39c7 100 90 179 191 179s184-79 191-179h39l-60-80-60 80h35c-6 62-53 110-113 120V224h44v-44h-44v-31c22-7 38-28 38-53 0-31-25-56-56-56zm0 44c7 0 13 6 13 13s-6 13-13 13-13-6-13-13 6-13 13-13z';
 
 function wrapWords(text: string, max: number): string[] {
   const words = text.split(/\s+/).filter(Boolean);
@@ -41,9 +42,10 @@ interface RNode {
   y: number;
   r: number;
   lines: string[];
-  leader: boolean;
-  mentor?: boolean;
-  href: string;
+  kind: 'leader' | 'disciple' | 'mentor';
+  /** Drill into this group instead of navigating away. */
+  drillGroupId?: string;
+  href?: string;
 }
 interface RLink {
   x1: number;
@@ -62,40 +64,77 @@ export function HierarchyGraph({
 }) {
   const router = useRouter();
   const [zoom, setZoom] = useState(1);
+  const [focusId, setFocusId] = useState<string | null>(null);
+
+  const focus = focusId ? (hierarchy.groups.find((g) => g.id === focusId) ?? null) : null;
 
   const { size, center, nodes, links } = useMemo(() => {
+    const nodes: RNode[] = [];
+    const links: RLink[] = [];
+
+    // ---- Drilled into one group: it sits at center, members orbit ----
+    if (focus) {
+      const leaderLines = focus.leaders.length
+        ? focus.leaders.flatMap((l) => wrapWords(l.name, 12))
+        : wrapWords('Unassigned', 12);
+      const centerR = Math.max(74, nodeRadius(leaderLines, true));
+      const members = focus.disciples;
+      const ring = centerR + 150;
+      const canvasR = ring + 90;
+      const cx = canvasR;
+      const cy = canvasR;
+
+      members.forEach((d, i) => {
+        const theta = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(members.length, 1);
+        const x = cx + ring * Math.cos(theta);
+        const y = cy + ring * Math.sin(theta);
+        const lines = wrapWords(d.name, 10);
+        links.push({ x1: cx, y1: cy, x2: x, y2: y });
+        nodes.push({
+          x,
+          y,
+          r: nodeRadius(lines, false),
+          lines,
+          kind: 'disciple',
+          href: `/people/${d.personId}`,
+        });
+      });
+
+      nodes.push({
+        x: cx,
+        y: cy,
+        r: centerR,
+        lines: leaderLines,
+        kind: 'leader',
+        href: `/groups/${focus.id}`,
+      });
+
+      return { size: canvasR * 2, center: { cx, cy }, nodes, links };
+    }
+
+    // ---- Whole fleet ----
     const groups = hierarchy.groups;
     const N = Math.max(groups.length, 1);
-
     const leaderLinesOf = (g: Hierarchy['groups'][number]) =>
       g.leaders.length ? g.leaders.flatMap((l) => wrapWords(l.name, 11)) : wrapWords('Unassigned', 11);
 
-    const maxLeaderR = Math.max(
-      44,
-      ...groups.map((g) => nodeRadius(leaderLinesOf(g), true)),
-    );
+    const maxLeaderR = Math.max(44, ...groups.map((g) => nodeRadius(leaderLinesOf(g), true)));
     const ring = Math.max(300, (N * (2 * maxLeaderR + 26)) / (2 * Math.PI));
     const canvasR = ring + maxLeaderR + 210;
     const cx = canvasR;
     const cy = canvasR;
-
-    const nodes: RNode[] = [];
-    const links: RLink[] = [];
     const leaderPos = new Map<string, { x: number; y: number }>();
 
     groups.forEach((g, i) => {
       const theta = -Math.PI / 2 + (i * 2 * Math.PI) / N;
-      const cos = Math.cos(theta);
-      const sin = Math.sin(theta);
       const lLines = leaderLinesOf(g);
       const lr = nodeRadius(lLines, true);
-      const lx = cx + ring * cos;
-      const ly = cy + ring * sin;
+      const lx = cx + ring * Math.cos(theta);
+      const ly = cy + ring * Math.sin(theta);
       links.push({ x1: cx, y1: cy, x2: lx, y2: ly });
-      nodes.push({ x: lx, y: ly, r: lr, lines: lLines, leader: true, href: `/groups/${g.id}` });
+      nodes.push({ x: lx, y: ly, r: lr, lines: lLines, kind: 'leader', drillGroupId: g.id });
       for (const l of g.leaders) leaderPos.set(l.personId, { x: lx, y: ly });
 
-      // Disciples fan outward beyond the leader node.
       const k = g.disciples.length;
       const rd = ring + lr + 78;
       const step = k > 1 ? (2 * 34 + 8) / rd : 0;
@@ -104,9 +143,15 @@ export function HierarchyGraph({
         const dx = cx + rd * Math.cos(dt);
         const dy = cy + rd * Math.sin(dt);
         const dLines = wrapWords(d.name, 10);
-        const dr = nodeRadius(dLines, false);
         links.push({ x1: lx, y1: ly, x2: dx, y2: dy });
-        nodes.push({ x: dx, y: dy, r: dr, lines: dLines, leader: false, href: `/people/${d.personId}` });
+        nodes.push({
+          x: dx,
+          y: dy,
+          r: nodeRadius(dLines, false),
+          lines: dLines,
+          kind: 'disciple',
+          drillGroupId: g.id,
+        });
       });
     });
 
@@ -117,8 +162,14 @@ export function HierarchyGraph({
         const mx = cx + mentorRing * Math.cos(theta);
         const my = cy + mentorRing * Math.sin(theta);
         const mLines = wrapWords(m.name, 11);
-        const mr = nodeRadius(mLines, false);
-        nodes.push({ x: mx, y: my, r: mr, lines: mLines, leader: false, mentor: true, href: `/people/${m.personId}` });
+        nodes.push({
+          x: mx,
+          y: my,
+          r: nodeRadius(mLines, false),
+          lines: mLines,
+          kind: 'mentor',
+          href: `/people/${m.personId}`,
+        });
         for (const menteeId of m.menteeIds) {
           const p = leaderPos.get(menteeId);
           if (p) links.push({ x1: mx, y1: my, x2: p.x, y2: p.y, mentor: true });
@@ -127,42 +178,68 @@ export function HierarchyGraph({
     }
 
     return { size: canvasR * 2, center: { cx, cy }, nodes, links };
-  }, [hierarchy, showMentors]);
+  }, [hierarchy, showMentors, focus]);
+
+  // Zoom by shrinking the viewBox around center, so the diagram always fits
+  // the container on any screen size.
+  const vb = size / zoom;
+  const viewBox = `${center.cx - vb / 2} ${center.cy - vb / 2} ${vb} ${vb}`;
+
+  function onNode(n: RNode) {
+    if (n.drillGroupId && !focus) {
+      setFocusId(n.drillGroupId);
+      setZoom(1);
+      return;
+    }
+    if (n.href) router.push(n.href);
+  }
 
   return (
     <div className="relative overflow-hidden rounded-hero border border-line bg-[#f4efe7]">
-      {/* Zoom controls — the diagram fits by default, zoom in to read names. */}
-      <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full border border-line bg-cream/90 px-1 py-1 backdrop-blur">
-        <button
-          onClick={() => setZoom((z) => Math.max(1, +(z - 0.5).toFixed(1)))}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-ink-soft hover:bg-sand"
-          aria-label="Zoom out"
-        >
-          −
-        </button>
-        <button
-          onClick={() => setZoom(1)}
-          className="px-2 text-xs font-medium text-muted hover:text-ink"
-        >
-          Fit
-        </button>
-        <button
-          onClick={() => setZoom((z) => Math.min(4, +(z + 0.5).toFixed(1)))}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-ink-soft hover:bg-sand"
-          aria-label="Zoom in"
-        >
-          +
-        </button>
+      {/* Controls */}
+      <div className="absolute inset-x-3 top-3 z-10 flex items-start justify-between gap-2">
+        {focus ? (
+          <button
+            onClick={() => {
+              setFocusId(null);
+              setZoom(1);
+            }}
+            className="rounded-full border border-line bg-cream/90 px-3 py-1.5 text-sm font-medium text-ink-soft backdrop-blur"
+          >
+            ← All Groups
+          </button>
+        ) : (
+          <span className="rounded-full border border-line bg-cream/90 px-3 py-1.5 text-xs text-muted backdrop-blur">
+            Tap A Group To Zoom In
+          </span>
+        )}
+        <div className="flex items-center gap-1 rounded-full border border-line bg-cream/90 px-1 py-1 backdrop-blur">
+          <button
+            onClick={() => setZoom((z) => Math.max(1, +(z - 0.5).toFixed(1)))}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-ink-soft hover:bg-sand"
+            aria-label="Zoom out"
+          >
+            −
+          </button>
+          <button onClick={() => setZoom(1)} className="px-2 text-xs font-medium text-muted hover:text-ink">
+            Fit
+          </button>
+          <button
+            onClick={() => setZoom((z) => Math.min(4, +(z + 0.5).toFixed(1)))}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-ink-soft hover:bg-sand"
+            aria-label="Zoom in"
+          >
+            +
+          </button>
+        </div>
       </div>
 
-      <div className="flex h-[78vh] items-start justify-center overflow-auto">
-        <svg
-          viewBox={`0 0 ${size} ${size}`}
-          preserveAspectRatio="xMidYMid meet"
-          style={{ height: `${zoom * 100}%`, width: 'auto', aspectRatio: '1 / 1' }}
-          className="block shrink-0"
-        >
-        {/* spokes */}
+      {/* The diagram always fits its box; zoom narrows the viewBox. */}
+      <svg
+        viewBox={viewBox}
+        preserveAspectRatio="xMidYMid meet"
+        className="block h-[62vh] w-full md:h-[74vh]"
+      >
         {links.map((l, i) => (
           <line
             key={i}
@@ -170,41 +247,54 @@ export function HierarchyGraph({
             y1={l.y1}
             x2={l.x2}
             y2={l.y2}
-            stroke={l.mentor ? OLIVE : l.mentor === undefined && Math.hypot(l.x2 - center.cx, l.y2 - center.cy) < size / 2 ? SPOKE : LEAF}
-            strokeWidth={l.mentor ? 1.5 : 1.4}
+            stroke={l.mentor ? OLIVE : SPOKE}
+            strokeWidth={1.4}
             strokeDasharray={l.mentor ? '4 4' : undefined}
-            opacity={0.65}
+            opacity={l.mentor ? 0.6 : 0.5}
           />
         ))}
 
-        {/* satellite + mentor nodes */}
         {nodes
-          .filter((n) => !n.leader)
+          .filter((n) => n.kind !== 'leader')
           .map((n, i) => (
-            <NodeG key={`s${i}`} n={n} onClick={() => router.push(n.href)} />
+            <NodeG key={`s${i}`} n={n} onClick={() => onNode(n)} />
+          ))}
+        {nodes
+          .filter((n) => n.kind === 'leader')
+          .map((n, i) => (
+            <NodeG key={`l${i}`} n={n} onClick={() => onNode(n)} />
           ))}
 
-        {/* leader nodes on top */}
-        {nodes
-          .filter((n) => n.leader)
-          .map((n, i) => (
-            <NodeG key={`l${i}`} n={n} onClick={() => router.push(n.href)} />
-          ))}
+        {/* Center anchor (fleet view only) */}
+        {!focus && (
+          <>
+            <circle cx={center.cx} cy={center.cy} r={108} fill="#0f1218" />
+            <g transform={`translate(${center.cx - 68} ${center.cy - 68}) scale(0.266)`} fill="#f9f5f1">
+              <path d={ANCHOR_PATH} />
+            </g>
+          </>
+        )}
 
-        {/* center anchor */}
-        <circle cx={center.cx} cy={center.cy} r={108} fill="#0f1218" />
-        <g transform={`translate(${center.cx - 68} ${center.cy - 68}) scale(0.266)`} fill="#f9f5f1">
-          <path d="M256 40c-31 0-56 25-56 56 0 25 16 46 38 53v31h-44v44h44v150c-60-10-107-58-113-120h35l-60-80-60 80h39c7 100 90 179 191 179s184-79 191-179h39l-60-80-60 80h35c-6 62-53 110-113 120V224h44v-44h-44v-31c22-7 38-28 38-53 0-31-25-56-56-56zm0 44c7 0 13 6 13 13s-6 13-13 13-13-6-13-13 6-13 13-13z" />
-          </g>
-        </svg>
-      </div>
+        {focus && focus.disciples.length === 0 && (
+          <text
+            x={center.cx}
+            y={center.cy + 150}
+            textAnchor="middle"
+            fontSize="15"
+            fill={OLIVE}
+            fontWeight={600}
+          >
+            Open Capacity — No Disciples Yet
+          </text>
+        )}
+      </svg>
     </div>
   );
 }
 
 function NodeG({ n, onClick }: { n: RNode; onClick: () => void }) {
-  const fill = n.mentor ? OLIVE : n.leader ? INK : GREY;
-  const textColor = n.leader || n.mentor ? '#f4efe7' : GREY_INK;
+  const fill = n.kind === 'mentor' ? OLIVE : n.kind === 'leader' ? INK : GREY;
+  const textColor = n.kind === 'disciple' ? GREY_INK : '#f4efe7';
   const lh = 12.5;
   const startY = -((n.lines.length - 1) / 2) * lh;
   return (
@@ -212,7 +302,7 @@ function NodeG({ n, onClick }: { n: RNode; onClick: () => void }) {
       <circle r={n.r} fill={fill} />
       <text
         textAnchor="middle"
-        fontSize={n.leader ? 12.5 : 11.5}
+        fontSize={n.kind === 'leader' ? 12.5 : 11.5}
         fontWeight={600}
         fill={textColor}
         style={{ pointerEvents: 'none' }}

@@ -17,6 +17,18 @@ export const auth = betterAuth({
   trustedOrigins: (process.env.WEB_ORIGIN ?? 'http://localhost:3000')
     .split(',')
     .map((o) => o.trim()),
+  session: {
+    // Browser-session only: the cookie is dropped when the browser closes, so
+    // everyone signs in fresh each time. Also expire server-side after 12h.
+    expiresIn: 60 * 60 * 12,
+    cookieCache: { enabled: false },
+  },
+  advanced: {
+    defaultCookieAttributes: {
+      // No maxAge/expires => a session cookie.
+      maxAge: undefined,
+    },
+  },
   emailAndPassword: {
     enabled: true,
     // Email delivery is wired in a later phase; don't block login on verification yet.

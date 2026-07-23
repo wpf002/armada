@@ -23,14 +23,12 @@ const MAIN: Item[] = [
 ];
 
 const ADMIN: Item[] = [
-  { href: '/admin/intake', label: 'Intake Queue', icon: 'inbox' },
-  { href: '/admin/unassigned', label: 'Unassigned', icon: 'alert' },
+  { href: '/registrations', label: 'Registrations', icon: 'inbox' },
   { href: '/admin/users', label: 'Users & Roles', icon: 'users' },
-  { href: '/admin/audit', label: 'Audit Log', icon: 'log' },
 ];
 
 function Icon({ name, active }: { name: string; active: boolean }) {
-  const s = active ? '#153a43' : '#8c8578';
+  const s = active ? '#42432e' : '#8c8578';
   const p = {
     width: 20,
     height: 20,

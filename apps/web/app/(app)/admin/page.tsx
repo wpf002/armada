@@ -11,10 +11,8 @@ export default function AdminHub() {
   if (user && user.role !== 'ADMIN') return <p className="p-5 text-muted">Admins only.</p>;
 
   const cards = [
-    { href: '/admin/users', title: 'Users & roles', sub: 'Invite, promote' },
-    { href: '/admin/intake', title: 'Intake queue', sub: 'New registrations' },
-    { href: '/admin/audit', title: 'Audit log', sub: 'Who changed what' },
-    { href: '/admin/unassigned', title: 'Unassigned', sub: 'Falling through' },
+    { href: '/admin/users', title: 'Users & Roles', sub: 'Invite, Promote' },
+    { href: '/registrations', title: 'Registrations', sub: 'Armada Sign-Ups' },
   ];
 
   return (

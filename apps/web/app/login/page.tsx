@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { signIn } from '@/lib/auth-client';
 import { Wordmark } from '@/components/Wordmark';
 
@@ -63,8 +64,11 @@ export default function LoginPage() {
           </label>
           {error && <p className="text-sm text-red-700">{error}</p>}
           <button type="submit" disabled={busy} className="btn-olive mt-1 disabled:opacity-60">
-            {busy ? 'Signing in…' : 'Sign in'}
+            {busy ? 'Signing In…' : 'Sign In'}
           </button>
+          <Link href="/forgot-password" className="text-center text-sm text-muted underline-offset-2 hover:text-ink">
+            Forgot Your Password?
+          </Link>
         </form>
 
         <p className="mt-auto pt-10 text-center text-xs text-muted">

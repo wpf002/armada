@@ -127,6 +127,45 @@ export function registerAdminRoutes(app: FastifyInstance) {
     return { ok: true, updated: result.count };
   });
 
+  // ---- Remove a person from the directory (admin) ----
+  // Soft removal: the row and its history stay (invariant #2 — no hard deletes),
+  // active edges are ended, and the person drops out of every list and the graph.
+  app.delete('/admin/people/:id', { preHandler: requireRole('ADMIN') }, async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const person = await prisma.person.findUnique({ where: { id }, include: { user: true } });
+    if (!person) return reply.status(404).send({ error: 'not found' });
+    if (person.user) {
+      return reply
+        .status(400)
+        .send({ error: 'This person has a login. Remove their user account first.' });
+    }
+    const now = new Date();
+    await prisma.groupMembership.updateMany({
+      where: { personId: id, leftAt: null },
+      data: { leftAt: now },
+    });
+    await prisma.mentorRelationship.updateMany({
+      where: { OR: [{ mentorId: id }, { menteeId: id }], endedAt: null },
+      data: { endedAt: now },
+    });
+    await prisma.interest.updateMany({
+      where: { personId: id, status: { in: ['OPEN', 'IN_PROGRESS'] } },
+      data: { status: 'DECLINED', resolvedAt: now },
+    });
+    await prisma.person.update({ where: { id }, data: { status: 'REMOVED' } });
+    await prisma.auditLog.create({
+      data: {
+        actorId: request.authedUser!.personId,
+        action: 'person.remove',
+        entity: 'Person',
+        entityId: id,
+        before: JSON.parse(JSON.stringify({ status: person.status })),
+        after: { status: 'REMOVED' },
+      },
+    });
+    return { ok: true };
+  });
+
   // ---- Permission-aware CSV export ----
   app.get('/admin/export/people.csv', { preHandler: requireRole('ADMIN') }, async (request, reply) => {
     const viewer = await buildViewer(request.authedUser!);

@@ -3,16 +3,20 @@
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, personDisplayName, type Profile } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 import { useSession } from '@/lib/auth-client';
 import type { SessionUser } from '@/lib/auth-client';
 import { Avatar } from '@/components/Avatar';
 
 export default function PersonPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const { data: session } = useSession();
   const user = session?.user as SessionUser | undefined;
   const [person, setPerson] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [delErr, setDelErr] = useState<string | null>(null);
 
   useEffect(() => {
     api<{ person: Profile }>(`/people/${id}`)
@@ -35,19 +39,19 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
 
   const details: Array<[string, string | null | undefined]> = [
     ['Occupation', person.occupation],
-    ['Marital status', person.maritalStatus ? person.maritalStatus.toLowerCase() : null],
+    ['Marital Status', person.maritalStatus ? person.maritalStatus.toLowerCase() : null],
     ['Address', person.address],
-    ['Looking for', person.lookingFor],
-    ['Heard about us', person.heardAboutUs],
+    ['Looking For', person.lookingFor],
+    ['Heard About Us', person.heardAboutUs],
     ['Bio', person.bio],
   ];
   const shown = details.filter(([, v]) => v);
 
   return (
     <div className="px-4 pt-4">
-      <Link href="/directory" className="text-sm text-muted">
-        ← Directory
-      </Link>
+      <button onClick={() => router.back()} className="text-sm text-muted">
+        ← Back
+      </button>
 
       <header className="mt-3 flex items-center gap-4">
         <Avatar person={person} size={72} />
@@ -160,15 +164,60 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
       {!hasContact && shown.length === 0 && (
         <p className="mt-6 rounded-card border border-dashed border-line px-4 py-5 text-center text-sm text-muted">
           {canSeeContact
-            ? 'No contact details on file yet.'
-            : 'Contact details are visible to their group leader, mentor, and admins.'}
+            ? 'No Contact Details On File Yet.'
+            : 'Contact Details Are Visible To Their Group Leader, Mentor, And Admins.'}
         </p>
       )}
 
       {isSelf && (
-        <Link href="/me" className="btn-ghost mt-6 inline-flex">
-          Edit my profile
+        <Link href="/profile" className="btn-ghost mt-6 inline-flex">
+          Edit My Profile
         </Link>
+      )}
+
+      {/* Admins can remove someone from the directory */}
+      {!isSelf && user?.role === 'ADMIN' && (
+        <div className="mt-8 border-t border-line pt-5">
+          {confirmDelete ? (
+            <div className="rounded-card border border-red-300 bg-red-50 p-4">
+              <p className="text-sm text-ink-soft">
+                Remove <span className="font-medium">{personDisplayName(person)}</span> from the
+                directory? Their group and mentor connections will be ended.
+              </p>
+              {delErr && <p className="mt-2 text-sm text-red-700">{delErr}</p>}
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={async () => {
+                    setDelErr(null);
+                    try {
+                      await api(`/admin/people/${id}`, { method: 'DELETE' });
+                      router.push('/directory');
+                    } catch (e) {
+                      setDelErr(
+                        String(e).includes('400')
+                          ? 'This person has a login. Remove their user account first.'
+                          : String(e),
+                      );
+                    }
+                  }}
+                  className="rounded-full bg-red-700 px-4 py-2 text-sm font-medium text-white"
+                >
+                  Yes, Remove
+                </button>
+                <button onClick={() => setConfirmDelete(false)} className="btn-ghost h-9 min-h-0 px-4 text-sm">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="text-sm font-medium text-red-700 hover:underline"
+            >
+              Remove From Directory
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
