@@ -125,7 +125,13 @@ above per service. Production migrations run via `pnpm --filter @armada/db migra
   mentees, and open follow-ups; admins also see the actionable gaps (wants-discipling,
   open-capacity leaders, unassigned people, groups without a mentor, stale follow-ups). Verified
   against real data: 48 leaders, 12 mentors, 9 want discipling, 64 unassigned.
-- **Phase 7 (events calendar)** is next.
+- **Phase 7 ✅** — Events calendar. Event CRUD (admin), RSVP, visibility scoping
+  (ALL / LEADERS_ONLY / ADMINS_ONLY), Armada Night recurrence (last Monday monthly at Communion
+  Coffee, 514 Lockwood Dr). Per-user **`.ics` subscription feed** signed with an HMAC token (no
+  session — a calendar app polls it) plus single-event downloads. Verified: an admin's LEADERS_ONLY
+  event appears in a leader's subscription feed (7 events) but is correctly absent from a member's
+  feed (6 events).
+- **Phase 8 (admin, audit, polish)** is next.
 
 ### Verify field visibility by role
 
