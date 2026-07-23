@@ -56,6 +56,39 @@ export interface Profile {
   groups?: GroupRef[];
 }
 
+export interface GroupMemberNode {
+  personId: string;
+  name: string;
+  photoUrl: string | null;
+  role?: 'LEADER' | 'CO_LEADER' | 'DISCIPLE';
+}
+
+export interface GroupDetail {
+  id: string;
+  name: string | null;
+  status: string;
+  meetingDay: string | null;
+  meetingTime: string | null;
+  location: string | null;
+  displayName: string;
+  leaders: GroupMemberNode[];
+  disciples: GroupMemberNode[];
+  openCapacity: boolean;
+}
+
+export interface MentorNode {
+  personId: string;
+  name: string;
+  photoUrl: string | null;
+  menteeIds: string[];
+}
+
+export interface Hierarchy {
+  fullGraph: boolean;
+  groups: GroupDetail[];
+  mentors: MentorNode[];
+}
+
 export function personDisplayName(p: {
   firstName?: string;
   lastName?: string;

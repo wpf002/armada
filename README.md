@@ -104,7 +104,14 @@ above per service. Production migrations run via `pnpm --filter @armada/db migra
   with **instant client-side search**, profile pages with `tel:`/`mailto:`/maps deep links,
   self-edit + photo, bottom tab bar. Verified by a role smoke test (member/leader/admin each see
   exactly the §6 fields — 7/7) and in the browser against the real 165-person import.
-- **Phase 4 (groups + radial hierarchy)** is next.
+- **Phase 4 ✅** — Group CRUD, membership management (ends via `leftAt`, never deletes), leader
+  assignment, and mentor management, all admin/leader-scoped through `can()`. The signature
+  **radial d3-force hierarchy** (`/groups`): anchor center, leader ring, disciple satellites,
+  optional mentor ring, open-capacity affordance on zero-disciple leaders; **accordion fallback
+  below 768px** — one data source, two presentations. Disciples see only their own group + leader;
+  leaders/mentors/admins see the whole org. Verified in-browser against the real 34-group import
+  (derived co-leader names, mentor tier, dual-role people).
+- **Phase 5 (Fillout integration)** is next.
 
 ### Verify field visibility by role
 

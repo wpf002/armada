@@ -9,6 +9,7 @@ import { auth } from './auth';
 import { requireAuth, requireRole } from './session';
 import { mergePeople } from './merge';
 import { registerPeopleRoutes } from './people';
+import { registerGroupRoutes } from './groups';
 
 const envSchema = z.object({
   API_PORT: z.coerce.number().default(4000),
@@ -87,6 +88,7 @@ export async function buildServer() {
   }));
 
   registerPeopleRoutes(app);
+  registerGroupRoutes(app);
 
   // Identity resolution: merge a duplicate person into another (§8). Admin only.
   app.post('/admin/people/:id/merge', { preHandler: requireRole('ADMIN') }, async (request, reply) => {
