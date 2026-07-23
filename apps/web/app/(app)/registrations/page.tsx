@@ -72,29 +72,20 @@ export default function RegistrationsPage() {
           {forms.map((f) => (
             <button
               key={f.formId}
-              onClick={() => f.count > 0 && setSelected(f)}
-              disabled={f.count === 0}
-              className={`flex min-h-[64px] items-center justify-between gap-3 rounded-card border px-4 py-3 text-left transition-colors ${
-                f.count > 0
-                  ? 'border-line bg-surface hover:bg-sand/50'
-                  : 'cursor-default border-dashed border-line bg-transparent'
-              }`}
+              onClick={() => setSelected(f)}
+              className="flex min-h-[64px] items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-3 text-left transition-colors hover:bg-sand/50"
             >
               <span className="min-w-0">
-                <span
-                  className={`block truncate font-medium ${f.count > 0 ? 'text-ink' : 'text-muted'}`}
-                >
-                  {f.name}
-                </span>
+                <span className="block truncate font-medium text-ink">{f.name}</span>
                 <span className="block text-sm text-muted">
                   {f.count > 0
                     ? `${f.count} Submission${f.count === 1 ? '' : 's'}`
                     : f.isPublished
-                      ? 'Not Readable Through Fillout’s API'
-                      : 'Draft — Not Published'}
+                      ? 'No Responses Retrieved'
+                      : 'Draft'}
                 </span>
               </span>
-              {f.count > 0 && <span className="shrink-0 text-muted">›</span>}
+              <span className="shrink-0 text-muted">›</span>
             </button>
           ))}
           {forms.length === 0 && (
@@ -149,8 +140,25 @@ export default function RegistrationsPage() {
           </li>
         ))}
         {rows.length === 0 && (
-          <li className="card px-4 py-6 text-center text-sm text-muted">
-            No Submissions.
+          <li className="card px-5 py-6 text-sm text-muted">
+            {selected.isPublished ? (
+              <>
+                <span className="block font-medium text-ink">No Responses Retrieved</span>
+                <span className="mt-1 block">
+                  Fillout&apos;s API returns &ldquo;Could not find flow snapshot&rdquo; for this
+                  form, so its responses can&apos;t be pulled in. Re-publishing it in Fillout
+                  usually fixes this; otherwise export the responses to CSV and import them.
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="block font-medium text-ink">Draft Form</span>
+                <span className="mt-1 block">
+                  This form hasn&apos;t been published in Fillout yet, so there&apos;s nothing to
+                  pull in.
+                </span>
+              </>
+            )}
           </li>
         )}
       </ul>
