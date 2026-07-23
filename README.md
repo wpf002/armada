@@ -89,7 +89,22 @@ above per service. Production migrations run via `pnpm --filter @armada/db migra
   hook so every User maps to one Person; Fastify role-guard middleware; the `visibleFieldsFor` /
   `can` permission model in `packages/shared` with 27 tests covering every §6 matrix cell.
   Verified: admin logs in and reaches `/admin/ping`; a member gets 403.
-- **Phase 2 (import + identity resolution)** is next.
+- **Phase 2 ✅** — xlsx importer (`pnpm --filter @armada/db import:xlsx`) reads all five sheets,
+  drops the dead Pods column, resolves identities (§8: email/phone/exact-name auto-link, curated
+  aliases for the 8 confirmed collisions, fuzzy + nickname → review), and writes the graph
+  (people, memberships, mentor edges, interests, prayer notes). Produces a
+  created/matched/needs-review/conflicts report. Verified against the real workbook: 162 people,
+  34 groups, 109 memberships, 52 mentor edges; **idempotent** (second run changes nothing);
+  the 8 collisions merged, uncertain pairs + orphaned mentees + placeholders parked in the review
+  list. Merge endpoint `POST /admin/people/:id/merge` reassigns all edges, tombstones the source,
+  and audit-logs. 10 resolution unit tests.
+- **Phase 3 (directory + profiles)** is next.
+
+### Import the workbook
+
+```bash
+pnpm --filter @armada/db import:xlsx -- "~/Downloads/Armada Leaders Info.xlsx" --fresh
+```
 
 ### First admin
 

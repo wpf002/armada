@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { ARMADA_SHARED_VERSION } from '@armada/shared';
 import { auth } from './auth';
 import { requireAuth, requireRole } from './session';
+import { mergePeople } from './merge';
 
 const envSchema = z.object({
   API_PORT: z.coerce.number().default(4000),
@@ -75,6 +76,18 @@ export async function buildServer() {
     ok: true,
     scope: 'admin',
   }));
+
+  // Identity resolution: merge a duplicate person into another (§8). Admin only.
+  app.post('/admin/people/:id/merge', { preHandler: requireRole('ADMIN') }, async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const { intoId } = z.object({ intoId: z.string().uuid() }).parse(request.body);
+    try {
+      const result = await mergePeople(request.authedUser?.personId ?? null, id, intoId);
+      return { ok: true, ...result };
+    } catch (err) {
+      return reply.status(400).send({ error: (err as Error).message });
+    }
+  });
 
   return app;
 }
