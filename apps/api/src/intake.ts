@@ -235,12 +235,12 @@ export async function ingestSubmission(
   let intakeStatus: 'NEW' | 'NEEDS_REVIEW' | 'LINKED_EXISTING' | 'CREATED_NEW' = 'NEW';
   let personId: string | null = null;
 
-  if (top && top.score >= 0.95) {
+  // If we recognise them at all, attach the submission to that person and move
+  // on — no review queue. Only genuinely unknown people become new records.
+  if (top && top.score >= 0.6) {
     personId = top.personId;
     intakeStatus = 'LINKED_EXISTING';
     await enrichPerson(personId, parsed);
-  } else if (top && top.score >= 0.6) {
-    intakeStatus = 'NEEDS_REVIEW'; // admin decides in the queue
   } else {
     personId = await createPersonFromSubmission(parsed);
     intakeStatus = 'CREATED_NEW';

@@ -5,7 +5,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '@armada/db';
-import { FilloutClient, FIELD_MAP, FILLOUT_FORM_ID } from '@armada/fillout';
+import { FilloutClient, FIELD_MAP, FILLOUT_FORM_ID, EXCLUDED_FORM_IDS } from '@armada/fillout';
 import { requireRole } from './session';
 import {
   createFromSubmission,
@@ -125,7 +125,10 @@ export function registerFilloutRoutes(app: FastifyInstance) {
       .parse(request.query);
 
     const subs = await prisma.formSubmission.findMany({
-      where: status ? { intakeStatus: status } : {},
+      where: {
+        ...(status ? { intakeStatus: status } : {}),
+        filloutFormId: { notIn: EXCLUDED_FORM_IDS },
+      },
       orderBy: { submittedAt: 'desc' },
       take: 1000,
       select: {
@@ -191,7 +194,7 @@ export function registerFilloutRoutes(app: FastifyInstance) {
     }
 
     const needsReview = await prisma.formSubmission.count({
-      where: { intakeStatus: 'NEEDS_REVIEW' },
+      where: { intakeStatus: 'NEEDS_REVIEW', filloutFormId: { notIn: EXCLUDED_FORM_IDS } },
     });
 
     return {
@@ -199,6 +202,50 @@ export function registerFilloutRoutes(app: FastifyInstance) {
       forms: [...byForm.values()].sort((a, b) => b.count - a.count),
       needsReview,
     };
+  });
+
+  // --- Every Fillout form in the account, with how many we hold locally ---
+  app.get('/registrations/forms', { preHandler: requireRole('ADMIN') }, async () => {
+    const apiKey = process.env.FILLOUT_API_KEY;
+    const counts = await prisma.formSubmission.groupBy({
+      by: ['filloutFormId'],
+      _count: { _all: true },
+    });
+    const countMap = new Map(counts.map((c) => [c.filloutFormId, c._count._all]));
+
+    if (!apiKey) {
+      return {
+        forms: [...countMap.entries()].map(([formId, count]) => ({
+          formId,
+          name: formId,
+          isPublished: true,
+          count,
+          readable: true,
+        })),
+      };
+    }
+
+    const raw = (await new FilloutClient({ apiKey }).listForms()) as unknown;
+    const arr = (Array.isArray(raw) ? raw : ((raw as { forms?: unknown[] })?.forms ?? [])) as Array<
+      Record<string, unknown>
+    >;
+    const forms = arr
+      .filter((f) => !EXCLUDED_FORM_IDS.includes(String(f.formId ?? f.id ?? '')))
+      .map((f) => {
+      const formId = String(f.formId ?? f.id ?? '');
+      const count = countMap.get(formId) ?? 0;
+      return {
+        formId,
+        name: String(f.name ?? formId),
+        isPublished: Boolean(f.isPublished),
+        count,
+        // Fillout's REST API can't read some older forms (it returns
+        // "Could not find flow snapshot"), so we hold nothing for them.
+        readable: count > 0,
+      };
+    });
+    forms.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    return { forms };
   });
 
   // --- Is the live Fillout form actually wired up? ---

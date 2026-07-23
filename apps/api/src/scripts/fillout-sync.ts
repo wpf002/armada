@@ -8,7 +8,7 @@
  * Needs FILLOUT_API_KEY in .env. Idempotent — re-running imports nothing new.
  */
 import { prisma } from '@armada/db';
-import { FilloutClient } from '@armada/fillout';
+import { FilloutClient, EXCLUDED_FORM_IDS } from '@armada/fillout';
 import { ingestSubmission } from '../intake';
 
 interface FormRef {
@@ -43,6 +43,9 @@ async function main() {
   console.log('\n→ Listing forms…');
   let forms = await listForms(client);
   if (onlyForm) forms = forms.filter((f) => f.formId === onlyForm);
+  const excluded = forms.filter((f) => EXCLUDED_FORM_IDS.includes(f.formId));
+  forms = forms.filter((f) => !EXCLUDED_FORM_IDS.includes(f.formId));
+  for (const f of excluded) console.log(`    (excluded: ${f.name})`);
   console.log(`✓ ${forms.length} form${forms.length === 1 ? '' : 's'}:`);
   for (const f of forms) console.log(`    ${f.formId}  ${f.name}`);
 

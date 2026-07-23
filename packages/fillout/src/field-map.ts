@@ -12,6 +12,14 @@
 
 export const FILLOUT_FORM_ID = 'dHqhm2ovxQus';
 
+/**
+ * Fillout forms deliberately kept out of Armada. One-off event sign-ups aren't
+ * registrations, so they shouldn't be synced or listed as a registration form.
+ */
+export const EXCLUDED_FORM_IDS: string[] = [
+  '235F46mjfous', // "4/14 - Aramada Master Class Signup" — one-time event
+];
+
 /** Target person/intake field an answer maps to. */
 export type TargetField =
   | 'name' // -> firstName + lastName (split on last space; 3-part -> review queue)
