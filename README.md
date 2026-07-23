@@ -131,7 +131,12 @@ above per service. Production migrations run via `pnpm --filter @armada/db migra
   session — a calendar app polls it) plus single-event downloads. Verified: an admin's LEADERS_ONLY
   event appears in a leader's subscription feed (7 events) but is correctly absent from a member's
   feed (6 events).
-- **Phase 8 (admin, audit, polish)** is next.
+- **Phase 8 ✅** — Admin surface: user list + role assignment (guards the last admin), invite flow
+  (temp password), audit-log viewer (every write is recorded — verified), bulk status/archive
+  (soft, no hard deletes), and a **permission-aware CSV export** that runs each row through
+  `visibleFieldsFor` so columns are masked by the requester's scope. Verified: admin exports 167
+  rows with full columns; a member gets 403.
+- **Phase 9 (ship)** is next.
 
 ### Verify field visibility by role
 

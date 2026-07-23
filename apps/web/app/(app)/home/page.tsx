@@ -38,7 +38,7 @@ export default function HomePage() {
         <HomeCard href="/directory" title="Directory" subtitle="Find anyone" />
         <HomeCard href="/me" title="My profile" subtitle="View & edit" />
         {user?.role === 'ADMIN' && (
-          <HomeCard href="/admin/intake" title="Intake queue" subtitle="New registrations" />
+          <HomeCard href="/admin" title="Admin" subtitle="Users, audit, export" />
         )}
       </div>
     </div>
