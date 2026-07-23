@@ -81,6 +81,13 @@ All variables are documented in [`.env.example`](./.env.example). Key ones:
 Railway, one service per app (`web`, `api`, `worker`) plus a managed Postgres. Set the env vars
 above per service. Production migrations run via `pnpm --filter @armada/db migrate:deploy`.
 
+## Status
+
+**All 9 phases complete.** The app runs end-to-end locally (see setup above): sign in, browse
+the 165-person directory, view the radial hierarchy, work the discipleship pipeline, manage
+events, and administer users — all against the real imported workbook data. Ship steps live in
+[`DEPLOY.md`](./DEPLOY.md).
+
 ## Build status
 
 - **Phase 0 ✅** — monorepo scaffold, config, brand tokens, derived group-name helper.
@@ -136,7 +143,13 @@ above per service. Production migrations run via `pnpm --filter @armada/db migra
   (soft, no hard deletes), and a **permission-aware CSV export** that runs each row through
   `visibleFieldsFor` so columns are masked by the requester's scope. Verified: admin exports 167
   rows with full columns; a member gets 403.
-- **Phase 9 (ship)** is next.
+- **Phase 9 ✅ (ship-ready)** — Installable **PWA** with a service worker that caches the app
+  shell and serves the directory offline; API centralized error handling + graceful `SIGTERM`
+  shutdown (verified); web error boundary. Deploy is documented end-to-end in
+  [`DEPLOY.md`](./DEPLOY.md) (three Railway services + Postgres, migrations on deploy, webhook
+  registration, workbook import). Ops scripts: `scripts/backup.sh` (pg_dump + retention),
+  `scripts/onboard-admins.sh` (the four leadership admins). **The actual Railway deploy runs in
+  your account** — everything it needs is in `DEPLOY.md`.
 
 ### Verify field visibility by role
 

@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import Fastify from 'fastify';
+import Fastify, { type FastifyError } from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
@@ -91,6 +91,18 @@ export async function buildServer() {
     scope: 'admin',
   }));
 
+  // Centralized error handling. Zod validation → 400; everything else → 500 with
+  // a stable shape. Hook your error tracker (e.g. Sentry) in here via SENTRY_DSN.
+  app.setErrorHandler((error: FastifyError, request, reply) => {
+    if (error.validation) {
+      return reply.status(400).send({ error: 'invalid request', details: error.message });
+    }
+    request.log.error(error);
+    const status = error.statusCode && error.statusCode >= 400 ? error.statusCode : 500;
+    return reply.status(status).send({ error: status >= 500 ? 'internal error' : error.message });
+  });
+  app.setNotFoundHandler((_request, reply) => reply.status(404).send({ error: 'not found' }));
+
   registerPeopleRoutes(app);
   registerGroupRoutes(app);
   registerFilloutRoutes(app);
@@ -120,6 +132,14 @@ async function start() {
   } catch (err) {
     app.log.error(err);
     process.exit(1);
+  }
+
+  // Graceful shutdown so Railway can roll deploys without dropping requests.
+  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+    process.on(signal, () => {
+      app.log.info(`${signal} received, closing…`);
+      void app.close().then(() => process.exit(0));
+    });
   }
 }
 

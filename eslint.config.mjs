@@ -11,6 +11,7 @@ export default tseslint.config(
       '**/.turbo/**',
       '**/generated/**',
       '**/next-env.d.ts',
+      '**/public/**',
       '**/*.config.{js,cjs,mjs}',
     ],
   },

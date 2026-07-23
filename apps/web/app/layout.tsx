@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Archivo } from 'next/font/google';
 import './globals.css';
+import { ServiceWorker } from '@/components/ServiceWorker';
 
 const archivo = Archivo({
   subsets: ['latin'],
@@ -24,7 +25,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={archivo.variable}>
-      <body className="min-h-screen bg-cream font-sans text-ink-soft antialiased">{children}</body>
+      <body className="min-h-screen bg-cream font-sans text-ink-soft antialiased">
+        {children}
+        <ServiceWorker />
+      </body>
     </html>
   );
 }
