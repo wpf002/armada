@@ -8,6 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "create:admin": "tsx src/scripts/create-admin.ts",
+    "fillout:sync": "tsx src/scripts/fillout-sync.ts",
+    "fillout:webhook": "tsx src/scripts/register-webhook.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
