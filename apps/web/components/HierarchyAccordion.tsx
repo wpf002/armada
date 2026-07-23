@@ -15,7 +15,7 @@ export function HierarchyAccordion({ hierarchy }: { hierarchy: Hierarchy }) {
       {hierarchy.groups.map((g) => (
         <GroupRow key={g.id} g={g} />
       ))}
-      {hierarchy.groups.length === 0 && <p className="text-muted">No groups to show.</p>}
+      {hierarchy.groups.length === 0 && <p className="text-muted">No Groups To Show.</p>}
     </div>
   );
 }
@@ -31,13 +31,13 @@ function GroupRow({ g }: { g: Hierarchy['groups'][number] }) {
         <span className="min-w-0">
           <span className="block truncate font-medium text-ink-soft">{g.displayName}</span>
           <span className="text-xs text-muted">
-            {g.leaders.length} leader{g.leaders.length === 1 ? '' : 's'} · {g.disciples.length}{' '}
-            disciple{g.disciples.length === 1 ? '' : 's'}
+            {g.leaders.length} Leader{g.leaders.length === 1 ? '' : 's'} · {g.disciples.length}{' '}
+            Disciple{g.disciples.length === 1 ? '' : 's'}
           </span>
         </span>
         <span className="flex items-center gap-2">
           {g.openCapacity && (
-            <span className="rounded-full bg-olive/15 px-2 py-0.5 text-[11px] text-olive">open</span>
+            <span className="rounded-full bg-olive/15 px-2 py-0.5 text-[11px] text-olive">Open</span>
           )}
           <span className="text-muted">{open ? '▾' : '▸'}</span>
         </span>
@@ -50,14 +50,14 @@ function GroupRow({ g }: { g: Hierarchy['groups'][number] }) {
               <li key={l.personId}>
                 <Link href={`/people/${l.personId}`} className="text-ink-soft">
                   {l.name}
-                  {l.role === 'CO_LEADER' && <span className="text-muted"> · co-leader</span>}
+                  {l.role === 'CO_LEADER' && <span className="text-muted"> · Co-Leader</span>}
                 </Link>
               </li>
             ))}
           </ul>
           <p className="mb-1 text-xs uppercase tracking-wide text-muted">Disciples</p>
           {g.disciples.length === 0 ? (
-            <p className="text-sm text-olive">Open capacity — no disciples yet.</p>
+            <p className="text-sm text-olive">Open Capacity — No Disciples Yet.</p>
           ) : (
             <ul className="flex flex-col gap-1">
               {g.disciples.map((d) => (
@@ -70,7 +70,7 @@ function GroupRow({ g }: { g: Hierarchy['groups'][number] }) {
             </ul>
           )}
           <Link href={`/groups/${g.id}`} className="mt-3 inline-block text-sm text-deep">
-            Manage group →
+            Manage Group →
           </Link>
         </div>
       )}

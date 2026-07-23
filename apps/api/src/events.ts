@@ -34,13 +34,28 @@ function verifyCalToken(token: string): string | null {
 }
 
 // --- Armada Night recurrence ----------------------------------------------
-function lastMondayOfMonth(year: number, month: number): Date {
-  // month is 0-indexed. Walk back from the last day of the month to Monday.
-  const d = new Date(Date.UTC(year, month + 1, 0));
-  while (d.getUTCDay() !== 1) d.setUTCDate(d.getUTCDate() - 1);
-  // Armada Night is 7pm Central. Hour 24 normalizes to 00:00 UTC the next day,
-  // which is 19:00 on the Monday in CDT (UTC-5) — so it renders as Monday evening.
-  return new Date(Date.UTC(year, month, d.getUTCDate(), 24, 0, 0));
+/** 7:00pm America/Chicago on the given day, correct across DST (no TZ library:
+ *  try both Central offsets and keep whichever actually renders as 19:00). */
+function central7pm(year: number, month: number, day: number): Date {
+  for (const offset of [5, 6]) {
+    const candidate = new Date(Date.UTC(year, month, day, 19 + offset, 0, 0));
+    const hour = Number(
+      new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Chicago',
+        hour: 'numeric',
+        hour12: false,
+      }).format(candidate),
+    );
+    if (hour === 19) return candidate;
+  }
+  return new Date(Date.UTC(year, month, day, 24, 0, 0));
+}
+
+function firstMondayOfMonth(year: number, month: number): Date {
+  // month is 0-indexed. Walk forward from the 1st to the first Monday.
+  const d = new Date(Date.UTC(year, month, 1));
+  while (d.getUTCDay() !== 1) d.setUTCDate(d.getUTCDate() + 1);
+  return central7pm(year, month, d.getUTCDate());
 }
 
 // --- ICS generation --------------------------------------------------------
@@ -212,7 +227,7 @@ export function registerEventRoutes(app: FastifyInstance) {
     let created = 0;
     for (let i = 0; i < months; i++) {
       const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
-      const startsAt = lastMondayOfMonth(target.getUTCFullYear(), target.getUTCMonth());
+      const startsAt = firstMondayOfMonth(target.getUTCFullYear(), target.getUTCMonth());
       if (startsAt < now) continue;
       const title = 'Armada Night';
       const exists = await prisma.event.findFirst({

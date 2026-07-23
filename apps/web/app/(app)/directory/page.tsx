@@ -44,12 +44,12 @@ export default function DirectoryPage() {
     <div className="px-4 pt-4">
       <header className="mb-3">
         <p className="eyebrow">Directory</p>
-        <h1 className="display text-2xl text-ink">{people.length} people</h1>
+        <h1 className="display text-2xl text-ink">{people.length} People</h1>
       </header>
 
       <input
         type="search"
-        placeholder="Search name, group, church…"
+        placeholder="Search Name, Group, Church…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         className="mb-3 min-h-[44px] w-full rounded-lg border border-line bg-surface px-3 outline-none focus:border-deep"
@@ -73,13 +73,13 @@ export default function DirectoryPage() {
                     {personDisplayName(p)}
                   </span>
                   <span className="block truncate text-sm text-muted">
-                    {primary ? primary.displayName : 'No group'}
+                    {primary ? primary.displayName : 'No Group'}
                     {p.churchAffiliation ? ` · ${p.churchAffiliation}` : ''}
                   </span>
                 </span>
                 {p.status === 'PROSPECT' && (
                   <span className="rounded-full bg-olive/15 px-2 py-0.5 text-[11px] text-olive">
-                    new
+                    New
                   </span>
                 )}
               </Link>
@@ -87,7 +87,7 @@ export default function DirectoryPage() {
           );
         })}
         {!loading && results.length === 0 && (
-          <li className="py-6 text-center text-muted">No matches.</li>
+          <li className="py-6 text-center text-muted">No Matches.</li>
         )}
       </ul>
     </div>

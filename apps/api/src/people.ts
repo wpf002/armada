@@ -124,7 +124,6 @@ export function registerPeopleRoutes(app: FastifyInstance) {
           : {}),
         ...(query.unassigned ? { memberships: { none: { leftAt: null } } } : {}),
       },
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
       select: {
         id: true,
         firstName: true,
@@ -134,6 +133,15 @@ export function registerPeopleRoutes(app: FastifyInstance) {
         churchAffiliation: true,
         status: true,
       },
+    });
+
+    // Alphabetical by surname, falling back to first name when there's no
+    // surname (imported records sometimes have only one name).
+    people.sort((a, b) => {
+      const ka = (a.lastName || a.firstName || '').toLowerCase();
+      const kb = (b.lastName || b.firstName || '').toLowerCase();
+      if (ka !== kb) return ka.localeCompare(kb);
+      return (a.firstName || '').toLowerCase().localeCompare((b.firstName || '').toLowerCase());
     });
 
     // Directory fields are public to any authenticated viewer — no per-row scope.
@@ -157,7 +165,21 @@ export function registerPeopleRoutes(app: FastifyInstance) {
     const groups = await subjectGroups(id);
     const subject: SubjectContext = { personId: id, groupIds: groups.map((g) => g.groupId) };
     const allowed = visibleFieldsFor(viewer, subject);
-    return { person: serialize(person as never, allowed, groups) };
+
+    // Open discipleship intents, so the profile can show where they stand
+    // (leading, being discipled, or looking to be placed).
+    const interests = await prisma.interest.findMany({
+      where: { personId: id, status: { in: ['OPEN', 'IN_PROGRESS'] } },
+      select: { type: true, status: true },
+    });
+    // Is anyone actively mentoring them?
+    const mentored = await prisma.mentorRelationship.count({
+      where: { menteeId: id, endedAt: null },
+    });
+
+    return {
+      person: { ...serialize(person as never, allowed, groups), interests, hasMentor: mentored > 0 },
+    };
   });
 
   // --- Self-edit (own profile) or admin edit anyone ---

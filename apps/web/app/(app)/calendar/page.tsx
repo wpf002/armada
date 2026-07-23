@@ -68,7 +68,7 @@ export default function CalendarPage() {
 
       {subUrl && (
         <div className="mb-4 mt-2 rounded-card border border-line bg-surface p-3">
-          <p className="text-xs uppercase tracking-wide text-muted">Subscribe on your phone</p>
+          <p className="text-xs uppercase tracking-wide text-muted">Subscribe On Your Phone</p>
           <p className="mb-2 text-sm text-ink-soft">
             Add this URL as a calendar subscription — new events appear automatically.
           </p>
@@ -114,7 +114,7 @@ export default function CalendarPage() {
                 )}
                 {e.visibility !== 'ALL' && (
                   <span className="mt-1 inline-block rounded-full bg-olive/15 px-2 py-0.5 text-[11px] text-olive">
-                    {e.visibility.toLowerCase().replace('_', ' ')}
+                    {e.visibility === 'LEADERS_ONLY' ? 'Leaders Only' : 'Admins Only'}
                   </span>
                 )}
                 {e.rsvpEnabled && (
@@ -125,14 +125,14 @@ export default function CalendarPage() {
                         onClick={() => rsvp(e.id, s)}
                         className={`rounded-full px-3 py-1 ${e.myRsvp === s ? 'bg-deep text-cream' : 'bg-sand text-ink-soft'}`}
                       >
-                        {s.toLowerCase()}
+                        {s.charAt(0) + s.slice(1).toLowerCase()}
                       </button>
                     ))}
-                    <span className="ml-auto self-center text-xs text-muted">{e.rsvpCount} going</span>
+                    <span className="ml-auto self-center text-xs text-muted">{e.rsvpCount} Going</span>
                   </div>
                 )}
                 <a href={`${API_BASE}/events/${e.id}.ics`} className="mt-2 inline-block text-sm font-medium text-deep">
-                  Add to calendar
+                  Add To Calendar
                 </a>
                 </div>
               </div>
@@ -141,7 +141,7 @@ export default function CalendarPage() {
           </div>
         </section>
       ))}
-      {events.length === 0 && <p className="text-muted">No upcoming events.</p>}
+      {events.length === 0 && <p className="text-muted">No Upcoming Events.</p>}
     </div>
   );
 }

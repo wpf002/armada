@@ -28,6 +28,11 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
   const canSeeContact = 'phone' in person || 'email' in person || 'address' in person;
   const hasContact = Boolean(person.phone || person.email || person.address);
 
+  const leads = (person.groups ?? []).some((g) => g.role !== 'DISCIPLE');
+  const inGroup = (person.groups ?? []).some((g) => g.role === 'DISCIPLE');
+  const wantsDiscipleship = (person.interests ?? []).some((i) => i.type === 'WANTS_DISCIPLESHIP');
+  const wantsToLead = (person.interests ?? []).some((i) => i.type === 'WANTS_TO_LEAD');
+
   const details: Array<[string, string | null | undefined]> = [
     ['Occupation', person.occupation],
     ['Marital status', person.maritalStatus ? person.maritalStatus.toLowerCase() : null],
@@ -51,13 +56,21 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
           {person.churchAffiliation && (
             <p className="text-sm text-muted">{person.churchAffiliation}</p>
           )}
-          {person.status === 'PROSPECT' && (
-            <span className="mt-1 inline-block rounded-full bg-olive/15 px-2 py-0.5 text-[11px] font-medium text-olive">
-              New registrant
-            </span>
-          )}
         </div>
       </header>
+
+      {/* Where they stand in discipleship */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {leads && <Badge tone="deep">Leading A Group</Badge>}
+        {inGroup && <Badge tone="slate">In A Group</Badge>}
+        {person.hasMentor && <Badge tone="slate">Has A Mentor</Badge>}
+        {wantsDiscipleship && <Badge tone="olive">Looking To Be Discipled</Badge>}
+        {wantsToLead && <Badge tone="olive">Wants To Lead</Badge>}
+        {person.status === 'PROSPECT' && <Badge tone="olive">New Registrant</Badge>}
+        {!leads && !inGroup && !wantsDiscipleship && !wantsToLead && (
+          <Badge tone="muted">Not In A Group Yet</Badge>
+        )}
+      </div>
 
       {/* Quick actions */}
       {hasContact && (
@@ -93,8 +106,8 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
               >
                 <span className="min-w-0">
                   <span className="block truncate font-medium text-ink">{g.displayName}</span>
-                  <span className="text-xs uppercase tracking-wide text-muted">
-                    {g.role.replace('_', '-').toLowerCase()}
+                  <span className="text-sm text-muted">
+                    {g.role === 'CO_LEADER' ? 'Co-Leader' : g.role === 'LEADER' ? 'Leader' : 'Disciple'}
                   </span>
                 </span>
                 <span className="text-muted">›</span>
@@ -158,6 +171,24 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
         </Link>
       )}
     </div>
+  );
+}
+
+function Badge({
+  tone,
+  children,
+}: {
+  tone: 'deep' | 'olive' | 'slate' | 'muted';
+  children: React.ReactNode;
+}) {
+  const cls = {
+    deep: 'bg-deep text-cream',
+    olive: 'bg-olive/15 text-olive',
+    slate: 'bg-sand text-ink-soft',
+    muted: 'border border-dashed border-line text-muted',
+  }[tone];
+  return (
+    <span className={`rounded-full px-3 py-1 text-[12px] font-medium ${cls}`}>{children}</span>
   );
 }
 

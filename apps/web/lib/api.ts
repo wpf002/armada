@@ -54,6 +54,8 @@ export interface Profile {
   heardAboutUs?: string | null;
   lookingFor?: string | null;
   groups?: GroupRef[];
+  interests?: Array<{ type: string; status: string }>;
+  hasMentor?: boolean;
 }
 
 export interface GroupMemberNode {
