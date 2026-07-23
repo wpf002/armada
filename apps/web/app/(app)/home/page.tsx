@@ -27,8 +27,11 @@ export default function HomePage() {
       <div className="grid grid-cols-2 gap-3">
         <HomeCard href="/directory" title="Directory" subtitle="Find anyone" />
         <HomeCard href="/me" title="My profile" subtitle="View & edit" />
-        <HomeCard href="/groups" title="Groups" subtitle="Coming soon" muted />
+        <HomeCard href="/groups" title="Groups" subtitle="Hierarchy" />
         <HomeCard href="/calendar" title="Calendar" subtitle="Coming soon" muted />
+        {user?.role === 'ADMIN' && (
+          <HomeCard href="/admin/intake" title="Intake queue" subtitle="New registrations" />
+        )}
       </div>
     </div>
   );

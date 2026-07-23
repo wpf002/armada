@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@armada/db": "workspace:*",
+    "@armada/fillout": "workspace:*",
     "@armada/shared": "workspace:*",
     "@fastify/cors": "^10.0.1",
     "@fastify/multipart": "^9.0.3",

@@ -35,6 +35,9 @@ importers:
       '@armada/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@armada/fillout':
+        specifier: workspace:*
+        version: link:../../packages/fillout
       '@armada/shared':
         specifier: workspace:*
         version: link:../../packages/shared

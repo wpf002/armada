@@ -111,7 +111,14 @@ above per service. Production migrations run via `pnpm --filter @armada/db migra
   below 768px** — one data source, two presentations. Disciples see only their own group + leader;
   leaders/mentors/admins see the whole org. Verified in-browser against the real 34-group import
   (derived co-leader names, mentor tier, dual-role people).
-- **Phase 5 (Fillout integration)** is next.
+- **Phase 5 ✅** — Fillout intake. `POST /webhooks/fillout` (shared-secret, idempotent on
+  `filloutSubmissionId`) → shared ingest pipeline (`apps/api/src/intake.ts`): parse by field-map,
+  §8 match (auto-link ≥0.95 / NEEDS_REVIEW / new PROSPECT), enrich NULLs only (invariant #4),
+  prayer request → private Note, `WANTS_TO_LEAD` heuristic, auto FollowUp. Admin intake queue
+  (link / create / ignore). Nightly reconcile + weekly metadata-drift run in `apps/worker` via
+  secret-guarded internal endpoints; `register-webhook.ts` for deploy. Verified locally with
+  simulated webhooks across all three bands; replaying a webhook creates nothing new.
+- **Phase 6 (pipeline + follow-up)** is next.
 
 ### Verify field visibility by role
 
