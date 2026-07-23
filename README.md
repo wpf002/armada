@@ -83,5 +83,22 @@ above per service. Production migrations run via `pnpm --filter @armada/db migra
 
 ## Build status
 
-Phase 0 complete: monorepo scaffold, config, brand tokens, and the derived group-name helper.
-Phase 1 (schema + auth) is next. See the roadmap for the full phase plan.
+- **Phase 0 ✅** — monorepo scaffold, config, brand tokens, derived group-name helper.
+- **Phase 1 ✅** — full Prisma schema (§5) + migration with partial unique indexes and the
+  `mentor_not_mentee` CHECK; Better Auth (email/password, sessions, reset) with a Person-linking
+  hook so every User maps to one Person; Fastify role-guard middleware; the `visibleFieldsFor` /
+  `can` permission model in `packages/shared` with 27 tests covering every §6 matrix cell.
+  Verified: admin logs in and reaches `/admin/ping`; a member gets 403.
+- **Phase 2 (import + identity resolution)** is next.
+
+### First admin
+
+```bash
+pnpm --filter @armada/api create:admin -- you@example.com 'a-strong-password' 'Your Name'
+```
+
+### Demo data
+
+```bash
+SEED_DEMO=1 pnpm --filter @armada/db seed
+```

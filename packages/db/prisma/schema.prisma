@@ -1,12 +1,9 @@
-// Armada — Prisma schema.
+// Armada — Prisma schema (§5 of the roadmap).
 //
-// PHASE 0: placeholder only. The full identity-graph model (§5 of the roadmap —
-// Person, User, DiscipleshipGroup, GroupMembership, MentorRelationship, Interest,
-// FollowUp, FormSubmission, Event, EventRsvp, Note, AuditLog) lands in PHASE 1,
-// together with migrations and the partial unique indexes.
-//
-// Invariants that constrain this schema (see CLAUDE.md): one Person per human,
-// roles are edges, no hard deletes, groups identified by their leaders.
+// Invariants (see CLAUDE.md): one Person per human; roles are edges; no hard
+// deletes (end via leftAt/endedAt); a person may hold multiple roles; groups
+// are identified by their leaders; co-leadership is the default; a leader with
+// zero disciples is valid; there is no Pod concept.
 
 generator client {
   provider = "prisma-client-js"
@@ -18,9 +15,367 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Placeholder so the client generates before Phase 1. Replaced by the full model.
-model HealthCheck {
-  id        String   @id @default(uuid())
-  ok        Boolean  @default(true)
+// ---------- Identity ----------
+
+model Person {
+  id                String         @id @default(uuid())
+  firstName         String
+  lastName          String
+  preferredName     String?
+  email             String?        @unique
+  phone             String?
+  address           String?
+  maritalStatus     MaritalStatus?
+  occupation        String?
+  churchAffiliation String?
+  photoUrl          String?
+  bio               String?
+  status            PersonStatus   @default(PROSPECT)
+
+  // registration intake fields
+  attendedBefore Boolean?
+  heardAboutUs   String?
+  lookingFor     String?
+
+  // A merge tombstone: when this person was merged INTO another, old links
+  // resolve forward (§8). Never hard-delete.
+  mergedIntoId String?
+  mergedInto   Person?  @relation("personMerge", fields: [mergedIntoId], references: [id])
+  mergedFrom   Person[] @relation("personMerge")
+
+  user                User?
+  memberships         GroupMembership[]
+  mentorEdgesAsMentor MentorRelationship[] @relation("mentor")
+  mentorEdgesAsMentee MentorRelationship[] @relation("mentee")
+  interests           Interest[]
+  followUpsOwned      FollowUp[]           @relation("followUpOwner")
+  followUpsAbout      FollowUp[]           @relation("followUpSubject")
+  notesAbout          Note[]               @relation("noteSubject")
+  submissions         FormSubmission[]
+  rsvps               EventRsvp[]
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([lastName, firstName])
+  @@index([status])
+}
+
+enum PersonStatus {
+  PROSPECT
+  ACTIVE
+  INACTIVE
+  ALUMNI
+  REMOVED
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  ENGAGED
+  DIVORCED
+  WIDOWED
+}
+
+enum Role {
+  ADMIN
+  LEADER
+  MEMBER
+}
+
+// ---------- Auth (Better Auth owns these tables) ----------
+// User carries the app's personId + role (roadmap §5). Better Auth manages
+// credentials via Account, sessions via Session, and email verification /
+// password reset via Verification.
+
+model User {
+  id            String  @id @default(uuid())
+  name          String
+  email         String  @unique
+  emailVerified Boolean @default(false)
+  image         String?
+
+  // App fields
+  personId String @unique
+  person   Person @relation(fields: [personId], references: [id])
+  role     Role   @default(MEMBER)
+
+  sessions Session[]
+  accounts Account[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id @default(uuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(uuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+// ---------- Groups ----------
+
+model DiscipleshipGroup {
+  id          String      @id @default(uuid())
+  // "Group 10" — optional internal label only. Display name is DERIVED from
+  // active leaders (see §2/§9 and packages/shared deriveGroupDisplayName).
+  name        String?
+  status      GroupStatus @default(ACTIVE)
+  meetingDay  String?
+  meetingTime String?
+  location    String?
+  startedAt   DateTime?
+  closedAt    DateTime?
+
+  memberships GroupMembership[]
+  interests   Interest[]        @relation("interestAssignedGroup")
+
+  createdAt DateTime @default(now())
+}
+
+enum GroupStatus {
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+model GroupMembership {
+  id       String            @id @default(uuid())
+  groupId  String
+  group    DiscipleshipGroup @relation(fields: [groupId], references: [id])
+  personId String
+  person   Person            @relation(fields: [personId], references: [id])
+  role     GroupRole
+  joinedAt DateTime          @default(now())
+  leftAt   DateTime? // null = active
+
+  @@index([groupId, leftAt])
+  @@index([personId, leftAt])
+}
+
+// LEADER vs CO_LEADER is a display distinction only — identical permissions (§2).
+enum GroupRole {
+  LEADER
+  CO_LEADER
+  DISCIPLE
+}
+
+// ---------- Mentorship (season vet -> D-group leader) ----------
+
+model MentorRelationship {
+  id        String    @id @default(uuid())
+  mentorId  String
+  mentor    Person    @relation("mentor", fields: [mentorId], references: [id])
+  menteeId  String
+  mentee    Person    @relation("mentee", fields: [menteeId], references: [id])
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  notes     String?
+
+  @@index([mentorId, endedAt])
+  @@index([menteeId, endedAt])
+}
+
+// ---------- Pipeline ----------
+
+model Interest {
+  id              String             @id @default(uuid())
+  personId        String
+  person          Person             @relation(fields: [personId], references: [id])
+  type            InterestType
+  status          InterestStatus     @default(OPEN)
+  assignedGroupId String?
+  assignedGroup   DiscipleshipGroup? @relation("interestAssignedGroup", fields: [assignedGroupId], references: [id])
+  notes           String?
+  createdAt       DateTime           @default(now())
+  resolvedAt      DateTime?
+
+  @@index([type, status])
+}
+
+enum InterestType {
+  WANTS_DISCIPLESHIP
+  WANTS_TO_LEAD
+  WANTS_MENTOR
+}
+
+enum InterestStatus {
+  OPEN
+  IN_PROGRESS
+  PLACED
+  DECLINED
+}
+
+model FollowUp {
+  id          String         @id @default(uuid())
+  subjectId   String
+  subject     Person         @relation("followUpSubject", fields: [subjectId], references: [id])
+  ownerId     String?
+  owner       Person?        @relation("followUpOwner", fields: [ownerId], references: [id])
+  status      FollowUpStatus @default(PENDING)
+  dueAt       DateTime?
+  completedAt DateTime?
+  outcome     String?
+
+  @@index([ownerId, status])
+}
+
+enum FollowUpStatus {
+  PENDING
+  CONTACTED
+  NO_RESPONSE
+  NOT_INTERESTED
+  MOVED
+  COMPLETED
+}
+
+// ---------- Fillout ----------
+
+model FormSubmission {
+  id                  String       @id @default(uuid())
+  filloutFormId       String
+  filloutSubmissionId String       @unique
+  submittedAt         DateTime
+  raw                 Json // verbatim payload, never mutated
+  intakeStatus        IntakeStatus @default(NEW)
+  personId            String?
+  person              Person?      @relation(fields: [personId], references: [id])
+  matchCandidates     Json? // [{personId, score, reason}]
+  reviewedById        String?
+  reviewedAt          DateTime?
+  createdAt           DateTime     @default(now())
+
+  @@index([intakeStatus])
+}
+
+enum IntakeStatus {
+  NEW
+  NEEDS_REVIEW
+  LINKED_EXISTING
+  CREATED_NEW
+  IGNORED
+}
+
+// ---------- Events ----------
+
+model Event {
+  id          String     @id @default(uuid())
+  title       String
+  type        EventType  @default(ARMADA_NIGHT)
+  description String?
+  startsAt    DateTime
+  endsAt      DateTime?
+  location    String?
+  address     String?
+  rsvpEnabled Boolean    @default(false)
+  visibility  Visibility @default(ALL)
+  rsvps       EventRsvp[]
+
+  @@index([startsAt])
+}
+
+enum EventType {
+  ARMADA_NIGHT
+  RETREAT
+  LEADER_TRAINING
+  GROUP_MEETING
+  SERVICE
+  OTHER
+}
+
+enum Visibility {
+  ALL
+  LEADERS_ONLY
+  ADMINS_ONLY
+}
+
+model EventRsvp {
+  id       String     @id @default(uuid())
+  eventId  String
+  event    Event      @relation(fields: [eventId], references: [id])
+  personId String
+  person   Person     @relation(fields: [personId], references: [id])
+  status   RsvpStatus @default(YES)
+
+  @@unique([eventId, personId])
+}
+
+enum RsvpStatus {
+  YES
+  NO
+  MAYBE
+}
+
+// ---------- Notes & audit ----------
+
+model Note {
+  id         String         @id @default(uuid())
+  subjectId  String
+  subject    Person         @relation("noteSubject", fields: [subjectId], references: [id])
+  authorId   String
+  body       String
+  visibility NoteVisibility @default(LEADERS)
+  createdAt  DateTime       @default(now())
+
+  @@index([subjectId])
+}
+
+enum NoteVisibility {
+  PRIVATE_TO_AUTHOR
+  LEADERS
+  ADMINS
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String?
+  action    String // "membership.end", "person.merge"
+  entity    String
+  entityId  String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
 }

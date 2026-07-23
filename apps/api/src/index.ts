@@ -2,6 +2,8 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { z } from 'zod';
 import { ARMADA_SHARED_VERSION } from '@armada/shared';
+import { auth } from './auth';
+import { requireAuth, requireRole } from './session';
 
 const envSchema = z.object({
   API_PORT: z.coerce.number().default(4000),
@@ -11,7 +13,7 @@ const envSchema = z.object({
 
 const env = envSchema.parse(process.env);
 
-async function buildServer() {
+export async function buildServer() {
   const app = Fastify({ logger: true });
 
   await app.register(cors, {
@@ -19,10 +21,59 @@ async function buildServer() {
     credentials: true,
   });
 
+  // --- Better Auth handler: mount all /api/auth/* routes ------------------
+  app.route({
+    method: ['GET', 'POST'],
+    url: '/api/auth/*',
+    async handler(request, reply) {
+      const url = new URL(request.url, `http://${request.headers.host}`);
+      const headers = new Headers();
+      for (const [key, value] of Object.entries(request.headers)) {
+        if (Array.isArray(value)) value.forEach((v) => headers.append(key, v));
+        else if (value != null) headers.append(key, value);
+      }
+
+      const req = new Request(url.toString(), {
+        method: request.method,
+        headers,
+        body:
+          request.method !== 'GET' && request.body != null
+            ? JSON.stringify(request.body)
+            : undefined,
+      });
+
+      const response = await auth.handler(req);
+
+      reply.status(response.status);
+      // Preserve multiple Set-Cookie headers.
+      const setCookies =
+        typeof response.headers.getSetCookie === 'function'
+          ? response.headers.getSetCookie()
+          : [];
+      response.headers.forEach((value, key) => {
+        if (key.toLowerCase() !== 'set-cookie') reply.header(key, value);
+      });
+      for (const cookie of setCookies) reply.header('set-cookie', cookie);
+
+      reply.send(response.body ? await response.text() : null);
+    },
+  });
+
+  // --- App routes ---------------------------------------------------------
   app.get('/health', async () => ({
     status: 'ok',
     service: 'armada-api',
     shared: ARMADA_SHARED_VERSION,
+  }));
+
+  app.get('/me', { preHandler: requireAuth }, async (request) => ({
+    user: request.authedUser,
+  }));
+
+  // Gate check: admin-only route. Members get 403.
+  app.get('/admin/ping', { preHandler: requireRole('ADMIN') }, async () => ({
+    ok: true,
+    scope: 'admin',
   }));
 
   return app;
@@ -38,4 +89,9 @@ async function start() {
   }
 }
 
-void start();
+// Only auto-start when run directly (not when imported by scripts/tests).
+if (process.argv[1] && process.argv[1].endsWith('index.ts')) {
+  void start();
+} else if (require.main === module) {
+  void start();
+}
