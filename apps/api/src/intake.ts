@@ -204,8 +204,15 @@ export interface IngestResult {
   personId: string | null;
 }
 
-export async function ingestSubmission(payload: Record<string, unknown>): Promise<IngestResult> {
-  const { submissionId, submittedAt, formId, questions } = extractSubmission(payload);
+export async function ingestSubmission(
+  payload: Record<string, unknown>,
+  formIdOverride?: string,
+): Promise<IngestResult> {
+  const extracted = extractSubmission(payload);
+  const { submissionId, submittedAt, questions } = extracted;
+  // Submissions fetched via GET /forms/{id}/submissions don't carry the form id,
+  // so the caller passes it in.
+  const formId = formIdOverride ?? extracted.formId;
   if (!submissionId) throw new Error('submission missing submissionId');
 
   // Idempotent: a replayed webhook creates nothing new.
@@ -275,6 +282,16 @@ export async function linkSubmission(submissionId: string, personId: string, rev
     where: { id: submissionId },
     data: { personId, intakeStatus: 'LINKED_EXISTING', reviewedById: reviewerId, reviewedAt: new Date() },
   });
+  await prisma.auditLog.create({
+    data: {
+      actorId: reviewerId,
+      action: 'intake.link',
+      entity: 'FormSubmission',
+      entityId: submissionId,
+      before: { intakeStatus: sub.intakeStatus },
+      after: { intakeStatus: 'LINKED_EXISTING', personId },
+    },
+  });
 }
 
 /** Resolve a NEEDS_REVIEW submission by creating a new person. */
@@ -288,6 +305,16 @@ export async function createFromSubmission(submissionId: string, reviewerId: str
   await prisma.formSubmission.update({
     where: { id: submissionId },
     data: { personId, intakeStatus: 'CREATED_NEW', reviewedById: reviewerId, reviewedAt: new Date() },
+  });
+  await prisma.auditLog.create({
+    data: {
+      actorId: reviewerId,
+      action: 'intake.createPerson',
+      entity: 'FormSubmission',
+      entityId: submissionId,
+      before: { intakeStatus: sub.intakeStatus },
+      after: { intakeStatus: 'CREATED_NEW', personId },
+    },
   });
   return personId;
 }

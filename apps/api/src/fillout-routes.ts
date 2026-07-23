@@ -76,51 +76,128 @@ export async function metadataDrift(): Promise<{
   return { missingInForm, unmappedInForm };
 }
 
+/** Answer lookup by question label from a stored submission payload. */
+function answer(raw: unknown, label: string): string | null {
+  const r = raw as {
+    submission?: { questions?: Array<{ name?: string; value?: unknown }> };
+    questions?: Array<{ name?: string; value?: unknown }>;
+  };
+  const qs = r?.submission?.questions ?? r?.questions ?? [];
+  const hit = qs.find((q) => q.name?.trim().toLowerCase() === label.toLowerCase());
+  const v = hit?.value;
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s && s !== '\\n' ? s : null;
+}
+
+/** Cache the Fillout form-id → name map briefly so listing stays cheap. */
+let formNameCache: { at: number; names: Record<string, string> } | null = null;
+async function formNames(): Promise<Record<string, string>> {
+  if (formNameCache && Date.now() - formNameCache.at < 5 * 60 * 1000) return formNameCache.names;
+  const apiKey = process.env.FILLOUT_API_KEY;
+  if (!apiKey) return {};
+  try {
+    const raw = (await new FilloutClient({ apiKey }).listForms()) as unknown;
+    const arr = (Array.isArray(raw) ? raw : ((raw as { forms?: unknown[] })?.forms ?? [])) as Array<
+      Record<string, unknown>
+    >;
+    const names: Record<string, string> = {};
+    for (const f of arr) {
+      const id = String(f.formId ?? f.id ?? '');
+      if (id) names[id] = String(f.name ?? id);
+    }
+    formNameCache = { at: Date.now(), names };
+    return names;
+  } catch {
+    return formNameCache?.names ?? {};
+  }
+}
+
 export function registerFilloutRoutes(app: FastifyInstance) {
-  // --- Everyone who filled out the Armada registration form ---
-  // Sourced from people carrying registration answers (imported sign-ups plus
-  // anything the live Fillout webhook has created), newest first.
-  app.get('/registrations', { preHandler: requireRole('ADMIN') }, async () => {
-    const people = await prisma.person.findMany({
-      where: {
-        mergedIntoId: null,
-        status: { not: 'REMOVED' },
-        OR: [
-          { lookingFor: { not: null } },
-          { heardAboutUs: { not: null } },
-          { attendedBefore: { not: null } },
-          { submissions: { some: {} } },
-        ],
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 300,
+  // --- Every Fillout registration, grouped by the form it came from ---
+  app.get('/registrations', { preHandler: requireRole('ADMIN') }, async (request) => {
+    const { status } = z
+      .object({
+        status: z
+          .enum(['NEW', 'NEEDS_REVIEW', 'LINKED_EXISTING', 'CREATED_NEW', 'IGNORED'])
+          .optional(),
+      })
+      .parse(request.query);
+
+    const subs = await prisma.formSubmission.findMany({
+      where: status ? { intakeStatus: status } : {},
+      orderBy: { submittedAt: 'desc' },
+      take: 1000,
       select: {
         id: true,
-        firstName: true,
-        lastName: true,
-        preferredName: true,
-        email: true,
-        phone: true,
-        churchAffiliation: true,
-        lookingFor: true,
-        status: true,
-        createdAt: true,
-        memberships: { where: { leftAt: null }, select: { id: true } },
-        submissions: { select: { submittedAt: true }, orderBy: { submittedAt: 'desc' }, take: 1 },
+        filloutFormId: true,
+        submittedAt: true,
+        personId: true,
+        intakeStatus: true,
+        matchCandidates: true,
+        raw: true,
+        person: { select: { phone: true, email: true, churchAffiliation: true } },
       },
     });
+
+    const names = await formNames();
+
+    // Candidate person names so the reviewer sees who they'd be linking to.
+    const candidateIds = new Set<string>();
+    for (const s of subs) {
+      for (const c of (s.matchCandidates as Array<{ personId: string }> | null) ?? []) {
+        candidateIds.add(c.personId);
+      }
+    }
+    const candPeople = candidateIds.size
+      ? await prisma.person.findMany({
+          where: { id: { in: [...candidateIds] } },
+          select: { id: true, firstName: true, lastName: true, email: true },
+        })
+      : [];
+    const candMap = new Map(
+      candPeople.map((p) => [p.id, { name: `${p.firstName} ${p.lastName}`.trim(), email: p.email }]),
+    );
+
+    const registrants = subs.map((s) => ({
+      submissionId: s.id,
+      formId: s.filloutFormId,
+      formName: names[s.filloutFormId] ?? s.filloutFormId,
+      personId: s.personId,
+      submittedAt: s.submittedAt,
+      status: s.intakeStatus,
+      name: answer(s.raw, 'Name') ?? '',
+      email: answer(s.raw, 'Email') ?? s.person?.email ?? null,
+      phone: answer(s.raw, 'Phone Number') ?? s.person?.phone ?? null,
+      church: answer(s.raw, 'Church Affiliation') ?? s.person?.churchAffiliation ?? null,
+      lookingFor: answer(s.raw, 'What are you looking for in Armada?'),
+      candidates: ((s.matchCandidates as Array<{ personId: string; score: number; reason: string }> | null) ?? [])
+        .slice(0, 4)
+        .map((c) => ({
+          personId: c.personId,
+          score: c.score,
+          reason: c.reason,
+          name: candMap.get(c.personId)?.name ?? 'Unknown',
+          email: candMap.get(c.personId)?.email ?? null,
+        })),
+    }));
+
+    // Form summary for grouping in the UI.
+    const byForm = new Map<string, { formId: string; formName: string; count: number }>();
+    for (const r of registrants) {
+      const cur = byForm.get(r.formId) ?? { formId: r.formId, formName: r.formName, count: 0 };
+      cur.count++;
+      byForm.set(r.formId, cur);
+    }
+
+    const needsReview = await prisma.formSubmission.count({
+      where: { intakeStatus: 'NEEDS_REVIEW' },
+    });
+
     return {
-      registrants: people.map((p) => ({
-        submissionId: p.id,
-        personId: p.id,
-        submittedAt: p.submissions[0]?.submittedAt ?? p.createdAt,
-        status: p.memberships.length > 0 ? 'PLACED' : p.status,
-        name: `${p.preferredName?.trim() || p.firstName} ${p.lastName}`.trim(),
-        email: p.email,
-        phone: p.phone,
-        church: p.churchAffiliation,
-        lookingFor: p.lookingFor,
-      })),
+      registrants,
+      forms: [...byForm.values()].sort((a, b) => b.count - a.count),
+      needsReview,
     };
   });
 
@@ -218,6 +295,15 @@ export function registerFilloutRoutes(app: FastifyInstance) {
     await prisma.formSubmission.update({
       where: { id },
       data: { intakeStatus: 'IGNORED', reviewedById: request.authedUser?.personId, reviewedAt: new Date() },
+    });
+    await prisma.auditLog.create({
+      data: {
+        actorId: request.authedUser?.personId ?? null,
+        action: 'intake.ignore',
+        entity: 'FormSubmission',
+        entityId: id,
+        after: { intakeStatus: 'IGNORED' },
+      },
     });
     return { ok: true };
   });

@@ -33,12 +33,38 @@ export class FilloutClient {
     this.fetchImpl = opts.fetchImpl ?? fetch;
   }
 
-  private async get<T>(path: string): Promise<T> {
+  /** Fillout allows 5 requests/second per API key, so space calls out and back
+   *  off on 429 rather than hammering and losing whole forms. */
+  private lastRequestAt = 0;
+  private static readonly MIN_GAP_MS = 250;
+
+  private async throttle(): Promise<void> {
+    const wait = this.lastRequestAt + FilloutClient.MIN_GAP_MS - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    this.lastRequestAt = Date.now();
+  }
+
+  private async get<T>(path: string, attempt = 0): Promise<T> {
+    await this.throttle();
     const res = await this.fetchImpl(`${this.baseUrl}${path}`, {
       headers: { Authorization: `Bearer ${this.apiKey}` },
     });
+
+    if (res.status === 429 && attempt < 4) {
+      const backoff = 600 * 2 ** attempt;
+      await new Promise((r) => setTimeout(r, backoff));
+      return this.get<T>(path, attempt + 1);
+    }
+
     if (!res.ok) {
-      throw new Error(`Fillout ${path} -> ${res.status} ${res.statusText}`);
+      let detail = '';
+      try {
+        const body = (await res.json()) as { message?: string };
+        if (body?.message) detail = `: ${body.message}`;
+      } catch {
+        /* non-JSON error body */
+      }
+      throw new Error(`Fillout ${path} -> ${res.status} ${res.statusText}${detail}`);
     }
     return (await res.json()) as T;
   }
