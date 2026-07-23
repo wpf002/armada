@@ -152,8 +152,11 @@ describe('manage group membership', () => {
     expect(can(leader, 'group.manageMembership', { groupId: GROUP_A })).toBe(true);
     expect(can(leader, 'group.manageMembership', { groupId: GROUP_B })).toBe(false);
   });
-  it('mentor (no leadership of that group) cannot manage it', () => {
-    expect(can(mentor, 'group.manageMembership', { groupId: GROUP_A })).toBe(false);
+  it('mentor can manage the group their mentee leads (mentors carry leader rights)', () => {
+    expect(can(mentor, 'group.manageMembership', { groupId: GROUP_A })).toBe(true);
+  });
+  it('mentor cannot manage an unrelated group', () => {
+    expect(can(mentor, 'group.manageMembership', { groupId: 'group-z' })).toBe(false);
   });
   it('admin can manage any group', () => {
     expect(can(admin, 'group.manageMembership', { groupId: GROUP_A })).toBe(true);

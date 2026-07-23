@@ -56,6 +56,7 @@ export interface Profile {
   groups?: GroupRef[];
   interests?: Array<{ type: string; status: string }>;
   hasMentor?: boolean;
+  discipledBy?: { id: string; name: string } | null;
 }
 
 export interface GroupMemberNode {

@@ -8,6 +8,15 @@ import { useSession } from '@/lib/auth-client';
 import type { SessionUser } from '@/lib/auth-client';
 import { Avatar } from '@/components/Avatar';
 
+/** The contact fields an admin can fill in, shown by name when empty. */
+const MISSING_FIELDS = [
+  { key: 'phone', label: 'Phone' },
+  { key: 'email', label: 'Email' },
+  { key: 'address', label: 'Address' },
+  { key: 'churchAffiliation', label: 'Church' },
+  { key: 'occupation', label: 'Occupation' },
+] as const;
+
 export default function PersonPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -17,6 +26,32 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [delErr, setDelErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+
+  // Seed the edit form from whatever is already on file.
+  useEffect(() => {
+    if (!person) return;
+    setDraft({
+      phone: person.phone ?? '',
+      email: person.email ?? '',
+      address: person.address ?? '',
+      churchAffiliation: person.churchAffiliation ?? '',
+      occupation: person.occupation ?? '',
+    });
+  }, [person]);
+
+  function copy(value: string, label: string) {
+    navigator.clipboard?.writeText(value).then(
+      () => {
+        setCopied(label);
+        setTimeout(() => setCopied(null), 2500);
+      },
+      () => {},
+    );
+  }
 
   useEffect(() => {
     api<{ person: Profile }>(`/people/${id}`)
@@ -76,25 +111,54 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
         )}
       </div>
 
-      {/* Quick actions */}
+      {/* Quick actions. On a phone these open the dialer / messages / mail app.
+          On a desktop browser there's often no handler, so we also copy the
+          value to the clipboard and say so. */}
       {hasContact && (
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           {person.phone && (
-            <a href={`tel:${person.phone}`} className="btn-olive h-10 min-h-0 px-4 text-sm">
+            <a
+              href={`tel:${person.phone}`}
+              onClick={() => copy(person.phone!, 'Phone Number Copied')}
+              className="btn-olive h-10 min-h-0 px-4 text-sm"
+            >
               Call
             </a>
           )}
           {person.phone && (
-            <a href={`sms:${person.phone}`} className="btn-ghost h-10 min-h-0 px-4 text-sm">
+            <a
+              href={`sms:${person.phone}`}
+              onClick={() => copy(person.phone!, 'Phone Number Copied')}
+              className="btn-ghost h-10 min-h-0 px-4 text-sm"
+            >
               Text
             </a>
           )}
           {person.email && (
-            <a href={`mailto:${person.email}`} className="btn-ghost h-10 min-h-0 px-4 text-sm">
+            <a
+              href={`mailto:${person.email}`}
+              onClick={() => copy(person.email!, 'Email Copied')}
+              className="btn-ghost h-10 min-h-0 px-4 text-sm"
+            >
               Email
             </a>
           )}
+          {copied && <span className="text-sm text-olive">{copied}</span>}
         </div>
+      )}
+
+      {/* Who disciples them */}
+      {person.discipledBy && (
+        <section className="mt-6">
+          <p className="eyebrow mb-2">Discipled By</p>
+          <Link
+            href={`/people/${person.discipledBy.id}`}
+            className="card flex items-center justify-between px-4 py-3"
+          >
+            <span className="font-medium text-ink">{person.discipledBy.name}</span>
+            <span className="text-muted">›</span>
+          </Link>
+        </section>
       )}
 
       {/* Groups */}
@@ -160,13 +224,89 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
         </section>
       )}
 
-      {/* Empty state */}
+      {/* Empty state — name the fields that are missing, and let admins fill them */}
       {!hasContact && shown.length === 0 && (
-        <p className="mt-6 rounded-card border border-dashed border-line px-4 py-5 text-center text-sm text-muted">
-          {canSeeContact
-            ? 'No Contact Details On File Yet.'
-            : 'Contact Details Are Visible To Their Group Leader, Mentor, And Admins.'}
-        </p>
+        <section className="mt-6">
+          {canSeeContact ? (
+            <div className="rounded-card border border-dashed border-line px-4 py-5">
+              <p className="font-medium text-ink">No Contact Details On File Yet</p>
+              <p className="mt-1 text-sm text-muted">These fields are still empty:</p>
+              <ul className="mt-2 flex flex-wrap gap-1.5">
+                {MISSING_FIELDS.map((f) => (
+                  <li
+                    key={f.key}
+                    className="rounded-full border border-line px-2.5 py-1 text-[12px] text-muted"
+                  >
+                    {f.label}
+                  </li>
+                ))}
+              </ul>
+              {user?.role === 'ADMIN' && !editing && (
+                <button onClick={() => setEditing(true)} className="btn-olive mt-4 h-10 min-h-0 px-4 text-sm">
+                  Add Contact Info
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className="rounded-card border border-dashed border-line px-4 py-5 text-center text-sm text-muted">
+              Contact Details Are Visible To Their Group Leader, Mentor, And Admins.
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* Admin edit form */}
+      {user?.role === 'ADMIN' && (
+        <section className="mt-6">
+          {!editing && (hasContact || shown.length > 0) && (
+            <button onClick={() => setEditing(true)} className="btn-ghost h-10 min-h-0 px-4 text-sm">
+              Edit Contact Info
+            </button>
+          )}
+          {editing && (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setSaving(true);
+                try {
+                  await api(`/people/${id}`, { method: 'PATCH', body: JSON.stringify(draft) });
+                  const r = await api<{ person: Profile }>(`/people/${id}`);
+                  setPerson(r.person);
+                  setEditing(false);
+                } catch (err) {
+                  setDelErr(String(err));
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              className="card flex flex-col gap-3 p-4"
+            >
+              <p className="eyebrow">Contact Info</p>
+              {MISSING_FIELDS.map((f) => (
+                <label key={f.key} className="flex flex-col gap-1 text-sm">
+                  <span className="text-ink-soft">{f.label}</span>
+                  <input
+                    value={(draft[f.key] as string) ?? ''}
+                    onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+                    className="min-h-[44px] rounded-full border border-line bg-surface px-4 outline-none focus:border-deep"
+                  />
+                </label>
+              ))}
+              <div className="flex gap-2">
+                <button type="submit" disabled={saving} className="btn-olive h-10 min-h-0 px-4 text-sm">
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  className="btn-ghost h-10 min-h-0 px-4 text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+        </section>
       )}
 
       {isSelf && (

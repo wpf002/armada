@@ -60,7 +60,7 @@ export default function GroupsPage() {
       <h1 className="display text-[26px]">{heading}</h1>
 
       {/* View tabs */}
-      <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+      <div className="mt-4 -mx-4 flex flex-nowrap gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((t) => (
           <button
             key={t.key}

@@ -253,8 +253,16 @@ export function registerPipelineRoutes(app: FastifyInstance) {
       prisma.followUp.count({
         where: { status: 'PENDING', OR: [{ dueAt: { lt: staleCutoff } }, { ownerId: null }] },
       }),
+      // Leaders and mentors don't need placing in a group, so they're not
+      // "unassigned" — only people with no group and no leading/mentoring role.
       prisma.person.count({
-        where: { status: { in: ['ACTIVE', 'PROSPECT'] }, mergedIntoId: null, memberships: { none: { leftAt: null } } },
+        where: {
+          status: { in: ['ACTIVE', 'PROSPECT'] },
+          mergedIntoId: null,
+          memberships: { none: { leftAt: null } },
+          mentorEdgesAsMentor: { none: { endedAt: null } },
+          mentorEdgesAsMentee: { none: { endedAt: null } },
+        },
       }),
     ]);
 
@@ -301,6 +309,8 @@ export function registerPipelineRoutes(app: FastifyInstance) {
         mergedIntoId: null,
         memberships: { none: { leftAt: null } },
         interests: { none: { status: { in: ['OPEN', 'IN_PROGRESS'] } } },
+        mentorEdgesAsMentor: { none: { endedAt: null } },
+        mentorEdgesAsMentee: { none: { endedAt: null } },
       },
       orderBy: [{ lastName: 'asc' }],
       select: { id: true, firstName: true, lastName: true, preferredName: true, status: true },

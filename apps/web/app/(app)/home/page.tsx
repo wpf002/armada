@@ -11,8 +11,6 @@ interface EventItem {
   startsAt: string;
   location: string | null;
   address: string | null;
-  rsvpEnabled: boolean;
-  myRsvp: string | null;
 }
 
 /**
@@ -90,7 +88,7 @@ export default function HomePage() {
                   </p>
                 )}
                 <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-deep">
-                  {nextEvent.myRsvp === 'YES' ? "You're Going" : 'RSVP'} →
+                  See The Calendar →
                 </span>
               </div>
             </div>

@@ -113,10 +113,15 @@ export function can(
     case 'event.manage':
       return isAdmin;
 
-    // Manage membership of a specific group: admin, or a leader of that group.
+    // Manage membership of a specific group: admin, a leader of that group, or
+    // a mentor of that group's leader (mentors carry leader permissions).
     case 'group.manageMembership':
       if (isAdmin) return true;
-      return ctx?.groupId != null && viewer.leaderGroupIds.includes(ctx.groupId);
+      if (ctx?.groupId == null) return false;
+      return (
+        viewer.leaderGroupIds.includes(ctx.groupId) ||
+        viewer.menteeGroupIds.includes(ctx.groupId)
+      );
 
     // View / create notes and view prayer requests: scoped access to the subject.
     case 'note.view':

@@ -14,10 +14,7 @@ interface EventItem {
   endsAt: string | null;
   location: string | null;
   address: string | null;
-  rsvpEnabled: boolean;
   visibility: string;
-  myRsvp: 'YES' | 'NO' | 'MAYBE' | null;
-  rsvpCount: number;
 }
 
 export default function CalendarPage() {
@@ -34,11 +31,6 @@ export default function CalendarPage() {
     load();
     api<{ url: string }>('/calendar/subscription').then((r) => setSubUrl(r.url));
   }, [load]);
-
-  async function rsvp(id: string, status: 'YES' | 'NO' | 'MAYBE') {
-    await api(`/events/${id}/rsvp`, { method: 'POST', body: JSON.stringify({ status }) });
-    load();
-  }
 
   // Group by month label.
   const groups = new Map<string, EventItem[]>();
@@ -117,20 +109,6 @@ export default function CalendarPage() {
                     {e.visibility === 'LEADERS_ONLY' ? 'Leaders Only' : 'Admins Only'}
                   </span>
                 )}
-                {e.rsvpEnabled && (
-                  <div className="mt-2 flex gap-2 text-sm">
-                    {(['YES', 'MAYBE', 'NO'] as const).map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => rsvp(e.id, s)}
-                        className={`rounded-full px-3 py-1 ${e.myRsvp === s ? 'bg-deep text-cream' : 'bg-sand text-ink-soft'}`}
-                      >
-                        {s.charAt(0) + s.slice(1).toLowerCase()}
-                      </button>
-                    ))}
-                    <span className="ml-auto self-center text-xs text-muted">{e.rsvpCount} Going</span>
-                  </div>
-                )}
                 <a href={`${API_BASE}/events/${e.id}.ics`} className="mt-2 inline-block text-sm font-medium text-deep">
                   Add To Calendar
                 </a>
@@ -162,7 +140,6 @@ function CreateEvent({ onCreated }: { onCreated: () => void }) {
         title,
         startsAt: new Date(startsAt).toISOString(),
         location: location || undefined,
-        rsvpEnabled: true,
         visibility,
       }),
     });

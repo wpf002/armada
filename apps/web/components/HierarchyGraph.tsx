@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Hierarchy } from '@/lib/api';
 
@@ -65,6 +65,9 @@ export function HierarchyGraph({
   const router = useRouter();
   const [zoom, setZoom] = useState(1);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ x: number; y: number; panX: number; panY: number; moved: boolean } | null>(null);
+  const draggedRef = useRef(false);
 
   const focus = focusId ? (hierarchy.groups.find((g) => g.id === focusId) ?? null) : null;
 
@@ -180,15 +183,41 @@ export function HierarchyGraph({
     return { size: canvasR * 2, center: { cx, cy }, nodes, links };
   }, [hierarchy, showMentors, focus]);
 
-  // Zoom by shrinking the viewBox around center, so the diagram always fits
-  // the container on any screen size.
+  // Zoom by shrinking the viewBox around a pannable centre, so the diagram
+  // always fits the container and can be dragged around when zoomed in.
   const vb = size / zoom;
-  const viewBox = `${center.cx - vb / 2} ${center.cy - vb / 2} ${vb} ${vb}`;
+  const viewBox = `${center.cx - vb / 2 + pan.x} ${center.cy - vb / 2 + pan.y} ${vb} ${vb}`;
+
+  // Drag/touch panning. Pointer events cover mouse and touch alike; we convert
+  // screen movement into viewBox units so panning tracks the finger 1:1.
+  function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
+    if (zoom <= 1) return;
+    dragRef.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
+    const d = dragRef.current;
+    if (!d) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const unitsPerPx = vb / Math.min(rect.width, rect.height);
+    const dx = (e.clientX - d.x) * unitsPerPx;
+    const dy = (e.clientY - d.y) * unitsPerPx;
+    if (Math.abs(e.clientX - d.x) > 4 || Math.abs(e.clientY - d.y) > 4) d.moved = true;
+    setPan({ x: d.panX - dx, y: d.panY - dy });
+  }
+  function onPointerUp(e: React.PointerEvent<SVGSVGElement>) {
+    if (dragRef.current) e.currentTarget.releasePointerCapture(e.pointerId);
+    // Keep "was this a drag?" briefly so the click handler can ignore it.
+    draggedRef.current = dragRef.current?.moved ?? false;
+    dragRef.current = null;
+  }
 
   function onNode(n: RNode) {
+    if (draggedRef.current) return; // panning, not a tap
     if (n.drillGroupId && !focus) {
       setFocusId(n.drillGroupId);
       setZoom(1);
+      setPan({ x: 0, y: 0 });
       return;
     }
     if (n.href) router.push(n.href);
@@ -203,6 +232,7 @@ export function HierarchyGraph({
             onClick={() => {
               setFocusId(null);
               setZoom(1);
+              setPan({ x: 0, y: 0 });
             }}
             className="rounded-full border border-line bg-cream/90 px-3 py-1.5 text-sm font-medium text-ink-soft backdrop-blur"
           >
@@ -210,18 +240,18 @@ export function HierarchyGraph({
           </button>
         ) : (
           <span className="rounded-full border border-line bg-cream/90 px-3 py-1.5 text-xs text-muted backdrop-blur">
-            Tap A Group To Zoom In
+            Tap A Group · Drag To Move
           </span>
         )}
         <div className="flex items-center gap-1 rounded-full border border-line bg-cream/90 px-1 py-1 backdrop-blur">
           <button
-            onClick={() => setZoom((z) => Math.max(1, +(z - 0.5).toFixed(1)))}
+            onClick={() => { const nz = Math.max(1, +(zoom - 0.5).toFixed(1)); setZoom(nz); if (nz === 1) setPan({ x: 0, y: 0 }); }}
             className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-ink-soft hover:bg-sand"
             aria-label="Zoom out"
           >
             −
           </button>
-          <button onClick={() => setZoom(1)} className="px-2 text-xs font-medium text-muted hover:text-ink">
+          <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} className="px-2 text-xs font-medium text-muted hover:text-ink">
             Fit
           </button>
           <button
@@ -238,6 +268,11 @@ export function HierarchyGraph({
       <svg
         viewBox={viewBox}
         preserveAspectRatio="xMidYMid meet"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        style={{ touchAction: 'none', cursor: zoom > 1 ? 'grab' : 'default' }}
         className="block h-[62vh] w-full md:h-[74vh]"
       >
         {links.map((l, i) => (

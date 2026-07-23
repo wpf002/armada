@@ -26,6 +26,17 @@ import { requireAuth, requireRole } from './session';
 
 const ACTIVE_LEADER: { in: GroupRole[] } = { in: ['LEADER', 'CO_LEADER'] };
 
+/** Preview/demo logins are hidden from the directory. */
+export const PREVIEW_EMAIL_SUFFIX = '@preview.armada';
+
+function personName(p: {
+  firstName: string;
+  lastName: string;
+  preferredName: string | null;
+}): string {
+  return `${p.preferredName?.trim() || p.firstName} ${p.lastName}`.trim();
+}
+
 /** Build the Viewer scope from a user's active edges. */
 export async function buildViewer(user: AuthedUser): Promise<Viewer> {
   const leaderMemberships = await prisma.groupMembership.findMany({
@@ -119,6 +130,8 @@ export function registerPeopleRoutes(app: FastifyInstance) {
       where: {
         mergedIntoId: null,
         status: query.status ?? { not: 'REMOVED' },
+        // Preview accounts exist to demo roles; keep them out of the directory.
+        NOT: { email: { endsWith: PREVIEW_EMAIL_SUFFIX } },
         ...(query.groupId
           ? { memberships: { some: { groupId: query.groupId, leftAt: null } } }
           : {}),
@@ -172,13 +185,24 @@ export function registerPeopleRoutes(app: FastifyInstance) {
       where: { personId: id, status: { in: ['OPEN', 'IN_PROGRESS'] } },
       select: { type: true, status: true },
     });
-    // Is anyone actively mentoring them?
-    const mentored = await prisma.mentorRelationship.count({
+    // Who disciples them (their mentor), if anyone.
+    const mentorEdge = await prisma.mentorRelationship.findFirst({
       where: { menteeId: id, endedAt: null },
+      select: {
+        mentor: { select: { id: true, firstName: true, lastName: true, preferredName: true } },
+      },
     });
+    const discipledBy = mentorEdge
+      ? { id: mentorEdge.mentor.id, name: personName(mentorEdge.mentor) }
+      : null;
 
     return {
-      person: { ...serialize(person as never, allowed, groups), interests, hasMentor: mentored > 0 },
+      person: {
+        ...serialize(person as never, allowed, groups),
+        interests,
+        hasMentor: Boolean(discipledBy),
+        discipledBy,
+      },
     };
   });
 
