@@ -1,11 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { signIn } from '@/lib/auth-client';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -16,12 +14,14 @@ export default function LoginPage() {
     setBusy(true);
     setError(null);
     const { error } = await signIn.email({ email, password });
-    setBusy(false);
     if (error) {
+      setBusy(false);
       setError(error.message ?? 'Sign in failed');
       return;
     }
-    router.replace('/home');
+    // Full-page load so the app boots with the session cookie already set —
+    // avoids a client-side auth-store race that bounces back to /login.
+    window.location.assign('/home');
   }
 
   return (

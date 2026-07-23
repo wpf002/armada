@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { API_BASE, api, personDisplayName, type Profile } from '@/lib/api';
 import { signOut, useSession } from '@/lib/auth-client';
 import type { SessionUser } from '@/lib/auth-client';
@@ -10,7 +9,6 @@ import { Avatar } from '@/components/Avatar';
 const MARITAL = ['', 'SINGLE', 'MARRIED', 'ENGAGED', 'DIVORCED', 'WIDOWED'];
 
 export default function MePage() {
-  const router = useRouter();
   const { data: session } = useSession();
   const user = session?.user as SessionUser | undefined;
   const fileRef = useRef<HTMLInputElement>(null);
@@ -139,7 +137,7 @@ export default function MePage() {
       <button
         onClick={async () => {
           await signOut();
-          router.replace('/login');
+          window.location.assign('/login');
         }}
         className="mt-6 w-full py-3 text-sm text-slate"
       >
