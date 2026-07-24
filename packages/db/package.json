@@ -21,7 +21,8 @@
     "seed": "tsx src/seed.ts",
     "import:xlsx": "tsx src/import/xlsx.ts",
     "test": "vitest run",
-    "clean": "rm -rf dist .turbo generated *.tsbuildinfo"
+    "clean": "rm -rf dist .turbo generated *.tsbuildinfo",
+    "import:csv": "tsx src/import/csv.ts"
   },
   "prisma": {
     "seed": "tsx src/seed.ts"
