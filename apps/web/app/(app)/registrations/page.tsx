@@ -18,7 +18,7 @@ interface Registrant {
   formId: string;
   formName: string;
   personId: string | null;
-  submittedAt: string;
+  submittedAt: string | null;
   status: string;
   name: string;
   email: string | null;
@@ -116,7 +116,7 @@ export default function RegistrationsPage() {
             <div className="flex items-baseline justify-between gap-2">
               <span className="font-medium text-ink">{r.name || '(No Name)'}</span>
               <span className="shrink-0 text-xs text-muted">
-                {new Date(r.submittedAt).toLocaleDateString()}
+                {r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : ''}
               </span>
             </div>
             {(r.email || r.church) && (
@@ -126,11 +126,6 @@ export default function RegistrationsPage() {
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <StatusChip status={r.status} />
-              {r.phone && (
-                <a href={`tel:${r.phone}`} className="btn-olive h-9 min-h-0 px-4 text-sm">
-                  Call
-                </a>
-              )}
               {r.personId && (
                 <Link href={`/people/${r.personId}`} className="btn-ghost h-9 min-h-0 px-4 text-sm">
                   View Profile

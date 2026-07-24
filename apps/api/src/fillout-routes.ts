@@ -77,17 +77,50 @@ export async function metadataDrift(): Promise<{
 }
 
 /** Answer lookup by question label from a stored submission payload. */
-function answer(raw: unknown, label: string): string | null {
+/**
+ * Pull one answer out of a stored submission, trying each label in turn.
+ *
+ * Two payload shapes reach us. Webhook and API submissions arrive as Fillout's
+ * `questions: [{name, value}]`. Responses imported from a Zite CSV export are a
+ * flat `{column: value}` object, because Zite documents are invisible to the
+ * Forms REST API and an export is the only way in. Both are stored verbatim
+ * (invariant #4), so reading — not writing — is where they get reconciled.
+ */
+function answer(raw: unknown, ...labels: string[]): string | null {
   const r = raw as {
     submission?: { questions?: Array<{ name?: string; value?: unknown }> };
     questions?: Array<{ name?: string; value?: unknown }>;
   };
+  const wanted = labels.map((l) => l.trim().toLowerCase());
+
+  const norm = (v: unknown): string | null => {
+    if (v == null) return null;
+    const s = String(v).trim();
+    return s && s !== '\\n' ? s : null;
+  };
+
   const qs = r?.submission?.questions ?? r?.questions ?? [];
-  const hit = qs.find((q) => q.name?.trim().toLowerCase() === label.toLowerCase());
-  const v = hit?.value;
-  if (v == null) return null;
-  const s = String(v).trim();
-  return s && s !== '\\n' ? s : null;
+  if (qs.length) {
+    for (const w of wanted) {
+      const hit = qs.find((q) => q.name?.trim().toLowerCase() === w);
+      const v = norm(hit?.value);
+      if (v) return v;
+    }
+    return null;
+  }
+
+  // Flat CSV-export shape.
+  if (raw && typeof raw === 'object') {
+    const entries = Object.entries(raw as Record<string, unknown>).map(
+      ([k, v]) => [k.trim().toLowerCase(), v] as const,
+    );
+    for (const w of wanted) {
+      const hit = entries.find(([k]) => k === w);
+      const v = norm(hit?.[1]);
+      if (v) return v;
+    }
+  }
+  return null;
 }
 
 /** Cache the Fillout form-id → name map briefly so listing stays cheap. */
@@ -167,13 +200,23 @@ export function registerFilloutRoutes(app: FastifyInstance) {
       formId: s.filloutFormId,
       formName: names[s.filloutFormId] ?? s.filloutFormId,
       personId: s.personId,
-      submittedAt: s.submittedAt,
+      // CSV exports without a timestamp column are stored at the epoch; send
+      // null rather than rendering a fake "12/31/1969".
+      submittedAt: s.submittedAt.valueOf() === 0 ? null : s.submittedAt,
       status: s.intakeStatus,
-      name: answer(s.raw, 'Name') ?? '',
-      email: answer(s.raw, 'Email') ?? s.person?.email ?? null,
-      phone: answer(s.raw, 'Phone Number') ?? s.person?.phone ?? null,
-      church: answer(s.raw, 'Church Affiliation') ?? s.person?.churchAffiliation ?? null,
-      lookingFor: answer(s.raw, 'What are you looking for in Armada?'),
+      name: answer(s.raw, 'Name', 'Full Name') ?? '',
+      email: answer(s.raw, 'Email', 'Email Address') ?? s.person?.email ?? null,
+      phone: answer(s.raw, 'Phone Number', 'Phone') ?? s.person?.phone ?? null,
+      church:
+        answer(s.raw, 'Church Affiliation', 'Church Membership', 'Church') ??
+        s.person?.churchAffiliation ??
+        null,
+      lookingFor: answer(
+        s.raw,
+        'What are you looking for in Armada?',
+        'Interest If Not In Group',
+        'Interest',
+      ),
       candidates: ((s.matchCandidates as Array<{ personId: string; score: number; reason: string }> | null) ?? [])
         .slice(0, 4)
         .map((c) => ({

@@ -95,11 +95,7 @@ export default function DashboardPage() {
               <Link href={`/people/${f.subject.id}`} className="block text-ink-soft">
                 {f.subject.name}
               </Link>
-              {f.subject.phone && (
-                <a href={`tel:${f.subject.phone}`} className="text-sm text-deep">
-                  {f.subject.phone}
-                </a>
-              )}
+              {f.subject.phone && <span className="text-sm text-muted">{f.subject.phone}</span>}
             </span>
             <button onClick={() => complete(f.id)} className="rounded-full bg-deep px-3 py-1 text-sm text-cream">
               Done

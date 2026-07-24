@@ -38,7 +38,6 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [delErr, setDelErr] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -52,16 +51,6 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
     }
     setDraft(seeded);
   }, [person]);
-
-  function copy(value: string, label: string) {
-    navigator.clipboard?.writeText(value).then(
-      () => {
-        setCopied(label);
-        setTimeout(() => setCopied(null), 2500);
-      },
-      () => {},
-    );
-  }
 
   useEffect(() => {
     api<{ person: Profile }>(`/people/${id}`)
@@ -120,42 +109,6 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
           <Badge tone="muted">Not In A Group Yet</Badge>
         )}
       </div>
-
-      {/* Quick actions. On a phone these open the dialer / messages / mail app.
-          On a desktop browser there's often no handler, so we also copy the
-          value to the clipboard and say so. */}
-      {hasContact && (
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          {person.phone && (
-            <a
-              href={`tel:${person.phone}`}
-              onClick={() => copy(person.phone!, 'Phone Number Copied')}
-              className="btn-olive h-10 min-h-0 px-4 text-sm"
-            >
-              Call
-            </a>
-          )}
-          {person.phone && (
-            <a
-              href={`sms:${person.phone}`}
-              onClick={() => copy(person.phone!, 'Phone Number Copied')}
-              className="btn-ghost h-10 min-h-0 px-4 text-sm"
-            >
-              Text
-            </a>
-          )}
-          {person.email && (
-            <a
-              href={`mailto:${person.email}`}
-              onClick={() => copy(person.email!, 'Email Copied')}
-              className="btn-ghost h-10 min-h-0 px-4 text-sm"
-            >
-              Email
-            </a>
-          )}
-          {copied && <span className="text-sm text-olive">{copied}</span>}
-        </div>
-      )}
 
       {/* Discipled by = the leader of the group they're a disciple in. */}
       {person.discipledBy && person.discipledBy.length > 0 && (
@@ -304,17 +257,11 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
           ) : (
             <div className="card divide-y divide-line">
               {person.phone && (
-                <Row label="Phone">
-                  <a href={`tel:${person.phone}`} className="text-deep">
-                    {person.phone}
-                  </a>
-                </Row>
+                <Row label="Phone">{person.phone}</Row>
               )}
               {person.email && (
                 <Row label="Email">
-                  <a href={`mailto:${person.email}`} className="break-all text-deep">
-                    {person.email}
-                  </a>
+                  <span className="break-all">{person.email}</span>
                 </Row>
               )}
               {shown.map(([label, value]) =>

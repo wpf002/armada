@@ -188,11 +188,6 @@ export default function ProfilePage() {
                       <span className="text-sm text-muted">Reach Out</span>
                     </Link>
                     <div className="flex shrink-0 gap-2">
-                      {f.subject.phone && (
-                        <a href={`tel:${f.subject.phone}`} className="btn-olive h-9 min-h-0 px-4 text-sm">
-                          Call
-                        </a>
-                      )}
                       <button
                         onClick={() => completeFollowUp(f.id)}
                         className="btn-ghost h-9 min-h-0 px-3 text-sm"
