@@ -60,12 +60,12 @@ export default function GroupsPage() {
       <h1 className="display text-[26px]">{heading}</h1>
 
       {/* View tabs */}
-      <div className="mt-4 -mx-4 flex flex-nowrap gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="mt-4 grid grid-cols-4 gap-1.5">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setView(t.key)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            className={`rounded-full px-2 py-2 text-center text-[13px] font-medium transition-colors ${
               view === t.key ? 'bg-deep text-cream' : 'border border-line text-ink-soft hover:bg-sand/60'
             }`}
           >

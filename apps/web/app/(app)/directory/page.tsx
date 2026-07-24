@@ -8,6 +8,7 @@ import { Avatar } from '@/components/Avatar';
 export default function DirectoryPage() {
   const [people, setPeople] = useState<DirectoryPerson[]>([]);
   const [q, setQ] = useState('');
+  const [sortBy, setSortBy] = useState<'last' | 'first'>('last');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,9 +37,13 @@ export default function DirectoryPage() {
 
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return people;
-    return index.filter((x) => x.hay.includes(needle)).map((x) => x.p);
-  }, [q, index, people]);
+    const base = needle ? index.filter((x) => x.hay.includes(needle)).map((x) => x.p) : people;
+    const key = (p: DirectoryPerson) =>
+      sortBy === 'first'
+        ? `${p.preferredName || p.firstName} ${p.lastName}`.trim().toLowerCase()
+        : `${p.lastName || p.firstName} ${p.firstName}`.trim().toLowerCase();
+    return [...base].sort((a, b) => key(a).localeCompare(key(b)));
+  }, [q, index, people, sortBy]);
 
   return (
     <div className="px-4 pt-4">
@@ -54,6 +59,21 @@ export default function DirectoryPage() {
         onChange={(e) => setQ(e.target.value)}
         className="mb-3 min-h-[44px] w-full rounded-lg border border-line bg-surface px-3 outline-none focus:border-deep"
       />
+
+      <div className="mb-3 flex items-center gap-2 text-sm">
+        <span className="text-muted">Sort</span>
+        {(['last', 'first'] as const).map((k) => (
+          <button
+            key={k}
+            onClick={() => setSortBy(k)}
+            className={`rounded-full px-3 py-1 font-medium ${
+              sortBy === k ? 'bg-deep text-cream' : 'border border-line text-ink-soft'
+            }`}
+          >
+            {k === 'last' ? 'Last Name' : 'First Name'}
+          </button>
+        ))}
+      </div>
 
       {loading && <p className="text-muted">Loading…</p>}
       {error && <p className="text-red-600">{error}</p>}

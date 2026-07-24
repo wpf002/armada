@@ -277,7 +277,7 @@ export default function ProfilePage() {
               <p className="eyebrow mb-2">The Fleet</p>
               <div className="grid grid-cols-2 gap-2.5">
                 <Stat n={dash.admin.wantsDiscipleship} label="Want Discipling" href="/pipeline" tone="olive" />
-                <Stat n={dash.admin.openCapacityLeaders} label="Open-Capacity Leaders" href="/groups" tone="deep" />
+                <Stat n={dash.admin.openCapacityLeaders} label="Leaders Available" href="/groups" tone="deep" />
                 <Stat n={dash.admin.unassignedPeople} label="Unassigned" href="/directory" />
                 <Stat n={dash.admin.groupsWithoutMentor} label="Groups Without A Mentor" href="/groups?view=mentors" />
               </div>

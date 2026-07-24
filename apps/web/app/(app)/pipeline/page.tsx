@@ -46,7 +46,7 @@ export default function PipelinePage() {
       <p className="eyebrow">Discipleship</p>
       <h1 className="display text-[26px]">Wants To Be Discipled</h1>
       <p className="mt-1 text-sm text-muted">
-        Drag Someone Between Stages. You Can Always Move Them Back.
+        Drag A Name Between Stages. You Can Always Drag It Back.
       </p>
 
       <div className="mt-5 flex flex-col gap-6">
@@ -100,19 +100,6 @@ export default function PipelinePage() {
                           </span>
                         )}
                       </Link>
-                    </div>
-                    {/* Touch fallback: dragging isn't available on most phones */}
-                    <div className="mt-3 flex flex-wrap gap-2 md:hidden">
-                      {STAGES.filter((s2) => s2.key !== stage.key).map((s2) => (
-                        <button
-                          key={s2.key}
-                          disabled={busy === i.id}
-                          onClick={() => move(i.id, s2.key)}
-                          className="btn-ghost h-8 min-h-0 px-3 text-xs disabled:opacity-50"
-                        >
-                          → {s2.label}
-                        </button>
-                      ))}
                     </div>
                   </div>
                 ))}

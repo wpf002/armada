@@ -17,7 +17,12 @@ export const FILLOUT_FORM_ID = 'dHqhm2ovxQus';
  * registrations, so they shouldn't be synced or listed as a registration form.
  */
 export const EXCLUDED_FORM_IDS: string[] = [
-  '235F46mjfous', // "4/14 - Aramada Master Class Signup" — one-time event
+  '235F46mjfous', // 4/14 Master Class Signup — one-time event
+  'f17fc07cee587f15', // Armada Questionnaire
+  'ad2d2cac8f24287c', // Armada RSVP
+  '0890e63fe3fdccdb', // Game Registrations
+  '1pfygtjnhc', // Onboarding Registration
+  'cRwtcM5Xuuus', // Theology Thursday Topics Survey
 ];
 
 /** Target person/intake field an answer maps to. */
