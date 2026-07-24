@@ -70,10 +70,6 @@ export default function LoginPage() {
             Forgot Your Password?
           </Link>
         </form>
-
-        <p className="mt-auto pt-10 text-center text-xs text-muted">
-          Armada Discipleship · Dallas, TX
-        </p>
       </div>
     </main>
   );
