@@ -57,7 +57,7 @@ export function parseCsv(text: string): string[][] {
 }
 
 const clean = (v: string | undefined): string | null => {
-  const s = (v ?? '').replace(/[ ﻿​]/g, ' ').trim();
+  const s = (v ?? '').replace(/[\u00A0\uFEFF\u200B]/g, ' ').trim();
   return s && s !== '\\n' ? s : null;
 };
 
