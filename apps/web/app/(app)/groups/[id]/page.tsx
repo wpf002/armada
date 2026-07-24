@@ -15,6 +15,7 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(() => {
     api<{ group: GroupDetail }>(`/groups/${id}`)
@@ -48,12 +49,31 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
         </p>
       )}
 
+      {user?.role === 'ADMIN' && (
+        <>
+          <button
+            onClick={() => setEditing((e) => !e)}
+            className="mt-2 text-sm text-deep underline-offset-2 hover:underline"
+          >
+            {editing ? 'Close' : 'Edit Group Details'}
+          </button>
+          {editing && (
+            <EditGroup
+              group={group}
+              onSaved={() => {
+                setEditing(false);
+                load();
+              }}
+            />
+          )}
+        </>
+      )}
+
       <Section title="Leaders">
         {group.leaders.map((l) => (
           <MemberRow
             key={l.personId}
             name={l.name}
-            sub={l.role === 'CO_LEADER' ? 'co-leader' : 'leader'}
             personId={l.personId}
             onRemove={canManage ? () => removeMember(l.personId) : undefined}
           />
@@ -85,6 +105,82 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
         </button>
       )}
       {adding && canManage && <AddMember groupId={id} onadded={() => { setAdding(false); load(); }} />}
+    </div>
+  );
+}
+
+/**
+ * Meeting rhythm + lifecycle. The group NAME stays derived from its leaders
+ * (invariant #8), so there is deliberately no name field here — change who
+ * leads and the name follows.
+ */
+function EditGroup({ group, onSaved }: { group: GroupDetail; onSaved: () => void }) {
+  const [meetingDay, setMeetingDay] = useState(group.meetingDay ?? '');
+  const [meetingTime, setMeetingTime] = useState(group.meetingTime ?? '');
+  const [location, setLocation] = useState(group.location ?? '');
+  const [status, setStatus] = useState(group.status);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api(`/groups/${group.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          meetingDay: meetingDay.trim() || null,
+          meetingTime: meetingTime.trim() || null,
+          location: location.trim() || null,
+          status,
+        }),
+      });
+      onSaved();
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const field = 'min-h-[44px] w-full rounded-lg border border-line bg-surface px-3 outline-none focus:border-deep';
+
+  return (
+    <div className="mt-3 flex flex-col gap-3 rounded-card border border-line bg-surface p-3">
+      <label className="block">
+        <span className="mb-1 block text-xs uppercase tracking-wide text-muted">Meeting Day</span>
+        <input value={meetingDay} onChange={(e) => setMeetingDay(e.target.value)} placeholder="Tuesday" className={field} />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-xs uppercase tracking-wide text-muted">Meeting Time</span>
+        <input value={meetingTime} onChange={(e) => setMeetingTime(e.target.value)} placeholder="6:30 AM" className={field} />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-xs uppercase tracking-wide text-muted">Location</span>
+        <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Watermark, Dallas" className={field} />
+      </label>
+      <div>
+        <p className="mb-1 text-xs uppercase tracking-wide text-muted">Status</p>
+        <div className="flex gap-2 text-sm">
+          {(['ACTIVE', 'PAUSED', 'CLOSED'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatus(s)}
+              className={`rounded-full px-3 py-1.5 ${status === s ? 'bg-deep text-cream' : 'bg-sand text-ink-soft'}`}
+            >
+              {s.charAt(0) + s.slice(1).toLowerCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+      {err && <p className="text-sm text-red-600">{err}</p>}
+      <button
+        onClick={save}
+        disabled={busy}
+        className="rounded-lg bg-deep py-2.5 text-sm font-medium text-cream disabled:opacity-40"
+      >
+        {busy ? 'Saving…' : 'Save Changes'}
+      </button>
     </div>
   );
 }
@@ -127,7 +223,7 @@ function MemberRow({
 function AddMember({ groupId, onadded }: { groupId: string; onadded: () => void }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState<DirectoryPerson[]>([]);
-  const [role, setRole] = useState<'DISCIPLE' | 'LEADER' | 'CO_LEADER'>('DISCIPLE');
+  const [role, setRole] = useState<'DISCIPLE' | 'LEADER'>('DISCIPLE');
 
   useEffect(() => {
     api<{ people: DirectoryPerson[] }>('/people').then((r) => setResults(r.people));
@@ -148,13 +244,13 @@ function AddMember({ groupId, onadded }: { groupId: string; onadded: () => void 
   return (
     <div className="mt-3 rounded-card border border-line bg-surface p-3">
       <div className="mb-2 flex gap-2 text-sm">
-        {(['DISCIPLE', 'LEADER', 'CO_LEADER'] as const).map((r) => (
+        {(['DISCIPLE', 'LEADER'] as const).map((r) => (
           <button
             key={r}
             onClick={() => setRole(r)}
             className={`rounded-full px-3 py-1 ${role === r ? 'bg-deep text-cream' : 'bg-sand text-ink-soft'}`}
           >
-            {r.toLowerCase().replace('_', '-')}
+            {r === 'DISCIPLE' ? 'Disciple' : 'Leader'}
           </button>
         ))}
       </div>

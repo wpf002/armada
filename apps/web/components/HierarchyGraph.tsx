@@ -3,38 +3,48 @@
 import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Hierarchy } from '@/lib/api';
+import { ANCHOR_BOUNDS, ANCHOR_PATHS } from './Anchor';
 
 // The Armada fleet diagram: anchor at center, dark leader nodes on a ring with
 // their names inside, grey disciple satellites orbiting each leader.
+//
+// Layout rule: every group owns an angular SECTOR sized by how many disciples
+// it has, and the rings are sized so the arc length inside each sector is
+// always wide enough for the nodes that sit in it. That is what keeps nodes
+// from overlapping — a fixed ring with a fixed fan-out cannot, because a leader
+// with nine disciples needs nine times the arc of a leader with one.
 const INK = '#141821';
-const GREY = '#b7bec6';
+const GREY = '#b9c0c8';
 const GREY_INK = '#20303b';
 const OLIVE = '#6f704d';
 const SPOKE = '#3a4048';
-const ANCHOR_PATH =
-  'M256 40c-31 0-56 25-56 56 0 25 16 46 38 53v31h-44v44h44v150c-60-10-107-58-113-120h35l-60-80-60 80h39c7 100 90 179 191 179s184-79 191-179h39l-60-80-60 80h35c-6 62-53 110-113 120V224h44v-44h-44v-31c22-7 38-28 38-53 0-31-25-56-56-56zm0 44c7 0 13 6 13 13s-6 13-13 13-13-6-13-13 6-13 13-13z';
+const CREAM = '#f4efe7';
 
-function wrapWords(text: string, max: number): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let cur = '';
-  for (const w of words) {
-    if ((cur + ' ' + w).trim().length <= max) cur = (cur + ' ' + w).trim();
-    else {
-      if (cur) lines.push(cur);
-      cur = w;
-    }
-  }
-  if (cur) lines.push(cur);
-  return lines.length ? lines : [text];
+const LEADER_FS = 12;
+const SAT_FS = 11;
+const LINE_H = 13.5;
+/** Semibold Archivo runs a shade under 0.56em per character. */
+const CHAR_W = 0.56;
+
+/** "Christopher Vanderbilt" -> "Christopher V." so long names still fit. */
+function shortName(name: string, max: number): string {
+  const t = name.trim().replace(/\s+/g, ' ');
+  if (t.length <= max) return t;
+  const parts = t.split(' ');
+  if (parts.length < 2) return t;
+  const first = parts[0]!;
+  const last = parts[parts.length - 1]!;
+  const two = `${first} ${last}`;
+  if (two.length <= max) return two;
+  return `${first} ${last[0]}.`;
 }
 
-function nodeRadius(lines: string[], leader: boolean): number {
+/** Smallest radius that fits the label's bounding box inside the circle. */
+function radiusFor(lines: string[], fs: number, min: number): number {
   const maxLen = Math.max(...lines.map((l) => l.length), 1);
-  const byWidth = maxLen * 3.7 + 12;
-  const byHeight = lines.length * 8.2 + 12;
-  const r = Math.max(byWidth, byHeight, leader ? 40 : 26);
-  return leader ? Math.min(r, 70) : Math.min(r, 44);
+  const w = maxLen * fs * CHAR_W;
+  const h = (lines.length - 1) * LINE_H + fs;
+  return Math.max(min, Math.hypot(w / 2, h / 2) + 9);
 }
 
 interface RNode {
@@ -66,24 +76,36 @@ export function HierarchyGraph({
   const [zoom, setZoom] = useState(1);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const dragRef = useRef<{ x: number; y: number; panX: number; panY: number; moved: boolean } | null>(null);
+  const dragRef = useRef<{
+    x: number;
+    y: number;
+    panX: number;
+    panY: number;
+    moved: boolean;
+  } | null>(null);
   const draggedRef = useRef(false);
 
   const focus = focusId ? (hierarchy.groups.find((g) => g.id === focusId) ?? null) : null;
 
-  const { size, center, nodes, links } = useMemo(() => {
+  const { size, center, nodes, links, rings } = useMemo(() => {
     const nodes: RNode[] = [];
     const links: RLink[] = [];
 
     // ---- Drilled into one group: it sits at center, members orbit ----
     if (focus) {
       const leaderLines = focus.leaders.length
-        ? focus.leaders.flatMap((l) => wrapWords(l.name, 12))
-        : wrapWords('Unassigned', 12);
-      const centerR = Math.max(74, nodeRadius(leaderLines, true));
+        ? focus.leaders.map((l) => shortName(l.name, 15))
+        : ['Unassigned'];
+      const centerR = Math.max(76, radiusFor(leaderLines, LEADER_FS + 1, 76));
       const members = focus.disciples;
-      const ring = centerR + 150;
-      const canvasR = ring + 90;
+      const memberLines = members.map((d) => [shortName(d.name, 14)]);
+      const memberR = memberLines.map((l) => radiusFor(l, SAT_FS, 28));
+      const maxMemberR = Math.max(30, ...memberR);
+
+      // Ring wide enough that every member circle has breathing room on the arc.
+      const fitRing = (members.length * (2 * maxMemberR + 16)) / (2 * Math.PI);
+      const ring = Math.max(centerR + maxMemberR + 90, fitRing);
+      const canvasR = ring + maxMemberR + 56;
       const cx = canvasR;
       const cy = canvasR;
 
@@ -91,13 +113,12 @@ export function HierarchyGraph({
         const theta = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(members.length, 1);
         const x = cx + ring * Math.cos(theta);
         const y = cy + ring * Math.sin(theta);
-        const lines = wrapWords(d.name, 10);
         links.push({ x1: cx, y1: cy, x2: x, y2: y });
         nodes.push({
           x,
           y,
-          r: nodeRadius(lines, false),
-          lines,
+          r: memberR[i]!,
+          lines: memberLines[i]!,
           kind: 'disciple',
           href: `/people/${d.personId}`,
         });
@@ -112,63 +133,149 @@ export function HierarchyGraph({
         href: `/groups/${focus.id}`,
       });
 
-      return { size: canvasR * 2, center: { cx, cy }, nodes, links };
+      return {
+        size: canvasR * 2,
+        center: { cx, cy },
+        nodes,
+        links,
+        rings: members.length ? [ring] : [],
+      };
     }
 
     // ---- Whole fleet ----
     const groups = hierarchy.groups;
-    const N = Math.max(groups.length, 1);
-    const leaderLinesOf = (g: Hierarchy['groups'][number]) =>
-      g.leaders.length ? g.leaders.flatMap((l) => wrapWords(l.name, 11)) : wrapWords('Unassigned', 11);
 
-    const maxLeaderR = Math.max(44, ...groups.map((g) => nodeRadius(leaderLinesOf(g), true)));
-    const ring = Math.max(300, (N * (2 * maxLeaderR + 26)) / (2 * Math.PI));
-    const canvasR = ring + maxLeaderR + 210;
+    const shaped = groups.map((g) => {
+      const lines = g.leaders.length ? g.leaders.map((l) => shortName(l.name, 15)) : ['Unassigned'];
+      const dLines = g.disciples.map((d) => [shortName(d.name, 13)]);
+      return {
+        g,
+        lines,
+        r: radiusFor(lines, LEADER_FS, 40),
+        dLines,
+        dR: dLines.map((l) => radiusFor(l, SAT_FS, 27)),
+      };
+    });
+
+    const maxSatR = Math.max(28, ...shaped.flatMap((s) => s.dR));
+    const maxLeaderR = Math.max(40, ...shaped.map((s) => s.r));
+    const satPitch = 2 * maxSatR + 8; // arc a satellite needs on its row
+    const rowGap = 2 * maxSatR + 10; // radial gap between satellite rows
+
+    /**
+     * Solve for the smallest leader ring that still fits everything.
+     *
+     * Each group needs an angular sector wide enough for BOTH its leader circle
+     * and its satellites, and the sectors must sum to a full turn. Both needs
+     * shrink as the ring grows, so the total is monotonic — a binary search
+     * lands on the tightest ring rather than a guessed constant. Guessing is
+     * what left the huge empty middle: the ring was sized for the worst case
+     * everywhere instead of for what each group actually needs.
+     */
+    function needsAt(ring: number, rows: number): number[] {
+      const r1 = ring + maxLeaderR + maxSatR + 22;
+      return shaped.map((s) => {
+        const leaderNeed = (2 * s.r + 16) / ring;
+        const perRow = Math.ceil(s.dLines.length / rows);
+        const satNeed = (perRow * satPitch) / r1;
+        return Math.max(leaderNeed, satNeed);
+      });
+    }
+    function solveRing(rows: number): number {
+      let lo = 160;
+      let hi = 6000;
+      for (let i = 0; i < 44; i++) {
+        const mid = (lo + hi) / 2;
+        const total = needsAt(mid, rows).reduce((a, b) => a + b, 0);
+        if (total > 2 * Math.PI) lo = mid;
+        else hi = mid;
+      }
+      return hi;
+    }
+
+    // More satellite rows means a tighter ring but a deeper fringe. Pick the
+    // row count that yields the most compact drawing overall.
+    const maxRows = Math.min(4, Math.max(1, ...shaped.map((s) => s.dLines.length)));
+    let rows = 1;
+    let ring = solveRing(1);
+    let best = ring + maxLeaderR + maxSatR + 22 + (1 - 1) * rowGap + maxSatR;
+    for (let r = 2; r <= maxRows; r++) {
+      const cand = solveRing(r);
+      const outer = cand + maxLeaderR + maxSatR + 22 + (r - 1) * rowGap + maxSatR;
+      if (outer < best) {
+        best = outer;
+        ring = cand;
+        rows = r;
+      }
+    }
+
+    const r1 = ring + maxLeaderR + maxSatR + 22;
+    const needs = needsAt(ring, rows);
+    const needTotal = needs.reduce((a, b) => a + b, 0);
+    // Distribute the leftover arc proportionally so the ring is evenly filled.
+    const spans = needs.map((n) => (n / needTotal) * 2 * Math.PI);
+
+    // Breathing room so the outermost circles never graze the frame.
+    const canvasR = best + 56;
     const cx = canvasR;
     const cy = canvasR;
     const leaderPos = new Map<string, { x: number; y: number }>();
 
-    groups.forEach((g, i) => {
-      const theta = -Math.PI / 2 + (i * 2 * Math.PI) / N;
-      const lLines = leaderLinesOf(g);
-      const lr = nodeRadius(lLines, true);
+    // Walk the sectors so each group starts where the previous one ended.
+    let cursor = -Math.PI / 2 - spans[0]! / 2;
+    shaped.forEach((s, i) => {
+      const span = spans[i]!;
+      const theta = cursor + span / 2;
+      cursor += span;
+
       const lx = cx + ring * Math.cos(theta);
       const ly = cy + ring * Math.sin(theta);
       links.push({ x1: cx, y1: cy, x2: lx, y2: ly });
-      nodes.push({ x: lx, y: ly, r: lr, lines: lLines, kind: 'leader', drillGroupId: g.id });
-      for (const l of g.leaders) leaderPos.set(l.personId, { x: lx, y: ly });
+      nodes.push({ x: lx, y: ly, r: s.r, lines: s.lines, kind: 'leader', drillGroupId: s.g.id });
+      for (const l of s.g.leaders) leaderPos.set(l.personId, { x: lx, y: ly });
 
-      const k = g.disciples.length;
-      const rd = ring + lr + 78;
-      const step = k > 1 ? (2 * 34 + 8) / rd : 0;
-      g.disciples.forEach((d, j) => {
-        const dt = theta + (j - (k - 1) / 2) * step;
-        const dx = cx + rd * Math.cos(dt);
-        const dy = cy + rd * Math.sin(dt);
-        const dLines = wrapWords(d.name, 10);
-        links.push({ x1: lx, y1: ly, x2: dx, y2: dy });
-        nodes.push({
-          x: dx,
-          y: dy,
-          r: nodeRadius(dLines, false),
-          lines: dLines,
-          kind: 'disciple',
-          drillGroupId: g.id,
+      // Satellites fan outward from their own leader, wrapping onto extra rows
+      // so a nine-disciple group reads as a cluster rather than a long arc.
+      const k = s.dLines.length;
+      if (k === 0) return;
+      const usedRows = Math.min(rows, k);
+      const byRow: number[][] = Array.from({ length: usedRows }, () => []);
+      s.dLines.forEach((_, j) => byRow[j % usedRows]!.push(j));
+
+      byRow.forEach((idxs, row) => {
+        const rr = r1 + row * rowGap;
+        // Keep the fan inside this group's own sector, never into a neighbour's.
+        const step = Math.min((span * 0.94) / idxs.length, (satPitch * 1.25) / rr);
+        idxs.forEach((j, pos) => {
+          const dt = theta + (pos - (idxs.length - 1) / 2) * step;
+          const dx = cx + rr * Math.cos(dt);
+          const dy = cy + rr * Math.sin(dt);
+          links.push({ x1: lx, y1: ly, x2: dx, y2: dy });
+          nodes.push({
+            x: dx,
+            y: dy,
+            r: s.dR[j]!,
+            lines: s.dLines[j]!,
+            kind: 'disciple',
+            drillGroupId: s.g.id,
+          });
         });
       });
     });
 
-    if (showMentors) {
-      const mentorRing = ring + maxLeaderR + 170;
+    // Mentors sit INSIDE the leader ring: their dashed links to the leaders they
+    // mentor stay short instead of crossing the whole diagram from outside.
+    if (showMentors && hierarchy.mentors.length) {
+      const mentorRing = ring * 0.44;
       hierarchy.mentors.forEach((m, i) => {
-        const theta = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(hierarchy.mentors.length, 1);
+        const theta = -Math.PI / 2 + (i * 2 * Math.PI) / hierarchy.mentors.length;
+        const mLines = [shortName(m.name, 14)];
         const mx = cx + mentorRing * Math.cos(theta);
         const my = cy + mentorRing * Math.sin(theta);
-        const mLines = wrapWords(m.name, 11);
         nodes.push({
           x: mx,
           y: my,
-          r: nodeRadius(mLines, false),
+          r: radiusFor(mLines, SAT_FS, 30),
           lines: mLines,
           kind: 'mentor',
           href: `/people/${m.personId}`,
@@ -180,8 +287,17 @@ export function HierarchyGraph({
       });
     }
 
-    return { size: canvasR * 2, center: { cx, cy }, nodes, links };
+    return { size: canvasR * 2, center: { cx, cy }, nodes, links, rings: [ring, r1] };
   }, [hierarchy, showMentors, focus]);
+
+  // Anchor scales with the drawing so the hub never floats in empty space.
+  const anchorR = focus ? 0 : Math.max(70, Math.min(150, size * 0.055));
+  // Centre on the mark's real ink bounds, not its artboard, so it sits dead
+  // centre in the hub disc.
+  const anchorScale = (anchorR * 1.25) / ANCHOR_BOUNDS.height;
+  const anchorTransform = `translate(${
+    center.cx - (ANCHOR_BOUNDS.x + ANCHOR_BOUNDS.width / 2) * anchorScale
+  } ${center.cy - (ANCHOR_BOUNDS.y + ANCHOR_BOUNDS.height / 2) * anchorScale}) scale(${anchorScale})`;
 
   // Zoom by shrinking the viewBox around a pannable centre, so the diagram
   // always fits the container and can be dragged around when zoomed in.
@@ -224,9 +340,10 @@ export function HierarchyGraph({
   }
 
   return (
-    <div className="relative overflow-hidden rounded-hero border border-line bg-[#f4efe7]">
-      {/* Controls */}
-      <div className="absolute inset-x-3 top-3 z-10 flex items-start justify-between gap-2">
+    <div>
+      {/* Controls sit ABOVE the canvas, not over it — floating them on top of
+          the drawing clipped the outermost nodes behind the chips. */}
+      <div className="mb-2 flex items-center justify-between gap-2">
         {focus ? (
           <button
             onClick={() => {
@@ -234,24 +351,32 @@ export function HierarchyGraph({
               setZoom(1);
               setPan({ x: 0, y: 0 });
             }}
-            className="rounded-full border border-line bg-cream/90 px-3 py-1.5 text-sm font-medium text-ink-soft backdrop-blur"
+            className="rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink-soft"
           >
             ← All Groups
           </button>
         ) : (
-          <span className="rounded-full border border-line bg-cream/90 px-3 py-1.5 text-xs text-muted backdrop-blur">
-            Tap A Group · Drag To Move
-          </span>
+          <span className="text-xs text-muted">Tap A Group · Drag To Move</span>
         )}
-        <div className="flex items-center gap-1 rounded-full border border-line bg-cream/90 px-1 py-1 backdrop-blur">
+        <div className="flex items-center gap-1 rounded-full border border-line bg-surface px-1 py-1">
           <button
-            onClick={() => { const nz = Math.max(1, +(zoom - 0.5).toFixed(1)); setZoom(nz); if (nz === 1) setPan({ x: 0, y: 0 }); }}
+            onClick={() => {
+              const nz = Math.max(1, +(zoom - 0.5).toFixed(1));
+              setZoom(nz);
+              if (nz === 1) setPan({ x: 0, y: 0 });
+            }}
             className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-ink-soft hover:bg-sand"
             aria-label="Zoom out"
           >
             −
           </button>
-          <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} className="px-2 text-xs font-medium text-muted hover:text-ink">
+          <button
+            onClick={() => {
+              setZoom(1);
+              setPan({ x: 0, y: 0 });
+            }}
+            className="px-2 text-xs font-medium text-muted hover:text-ink"
+          >
             Fit
           </button>
           <button
@@ -264,86 +389,124 @@ export function HierarchyGraph({
         </div>
       </div>
 
-      {/* The diagram always fits its box; zoom narrows the viewBox. */}
-      <svg
-        viewBox={viewBox}
-        preserveAspectRatio="xMidYMid meet"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        style={{ touchAction: 'none', cursor: zoom > 1 ? 'grab' : 'default' }}
-        className="block h-[62vh] w-full md:h-[74vh]"
-      >
-        {links.map((l, i) => (
-          <line
-            key={i}
-            x1={l.x1}
-            y1={l.y1}
-            x2={l.x2}
-            y2={l.y2}
-            stroke={l.mentor ? OLIVE : SPOKE}
-            strokeWidth={1.4}
-            strokeDasharray={l.mentor ? '4 4' : undefined}
-            opacity={l.mentor ? 0.6 : 0.5}
-          />
-        ))}
+      {/* The diagram always fits its box; zoom narrows the viewBox. The drawing
+          is square, so a square box on mobile wastes no cream above and below. */}
+      <div className="overflow-hidden rounded-hero border border-line bg-[#f4efe7]">
+        <svg
+          viewBox={viewBox}
+          preserveAspectRatio="xMidYMid meet"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          style={{ touchAction: 'none', cursor: zoom > 1 ? 'grab' : 'default' }}
+          className="block aspect-square w-full md:aspect-auto md:h-[74vh]"
+        >
+          <defs>
+            <radialGradient id="fleetGlow">
+              <stop offset="0%" stopColor="#e6ddcd" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="#e6ddcd" stopOpacity="0" />
+            </radialGradient>
+          </defs>
 
-        {nodes
-          .filter((n) => n.kind !== 'leader')
-          .map((n, i) => (
-            <NodeG key={`s${i}`} n={n} onClick={() => onNode(n)} />
+          {/* Warm halo behind the anchor, then faint guide rings for each orbit. */}
+          {!focus && <circle cx={center.cx} cy={center.cy} r={size * 0.3} fill="url(#fleetGlow)" />}
+          {rings.map((r, i) => (
+            <circle
+              key={i}
+              cx={center.cx}
+              cy={center.cy}
+              r={r}
+              fill="none"
+              stroke={SPOKE}
+              strokeWidth={1}
+              opacity={0.09}
+            />
           ))}
-        {nodes
-          .filter((n) => n.kind === 'leader')
-          .map((n, i) => (
-            <NodeG key={`l${i}`} n={n} onClick={() => onNode(n)} />
+
+          {links.map((l, i) => (
+            <line
+              key={i}
+              x1={l.x1}
+              y1={l.y1}
+              x2={l.x2}
+              y2={l.y2}
+              stroke={l.mentor ? OLIVE : SPOKE}
+              strokeWidth={l.mentor ? 1.6 : 1.2}
+              strokeDasharray={l.mentor ? '5 5' : undefined}
+              opacity={l.mentor ? 0.65 : 0.28}
+            />
           ))}
 
-        {/* Center anchor (fleet view only) */}
-        {!focus && (
-          <>
-            <circle cx={center.cx} cy={center.cy} r={108} fill="#0f1218" />
-            <g transform={`translate(${center.cx - 68} ${center.cy - 68}) scale(0.266)`} fill="#f9f5f1">
-              <path d={ANCHOR_PATH} />
-            </g>
-          </>
-        )}
+          {nodes
+            .filter((n) => n.kind !== 'leader')
+            .map((n, i) => (
+              <NodeG key={`s${i}`} n={n} onClick={() => onNode(n)} />
+            ))}
+          {nodes
+            .filter((n) => n.kind === 'leader')
+            .map((n, i) => (
+              <NodeG key={`l${i}`} n={n} onClick={() => onNode(n)} />
+            ))}
 
-        {focus && focus.disciples.length === 0 && (
-          <text
-            x={center.cx}
-            y={center.cy + 150}
-            textAnchor="middle"
-            fontSize="15"
-            fill={OLIVE}
-            fontWeight={600}
-          >
-            Open Capacity — No Disciples Yet
-          </text>
-        )}
-      </svg>
+          {/* Center anchor (fleet view only) */}
+          {!focus && (
+            <>
+              <circle
+                cx={center.cx}
+                cy={center.cy}
+                r={anchorR + 12}
+                fill="none"
+                stroke={OLIVE}
+                strokeWidth={1.5}
+                opacity={0.35}
+              />
+              <circle cx={center.cx} cy={center.cy} r={anchorR} fill="#0f1218" />
+              {/* The real Armada mark, scaled to sit inside the hub disc. */}
+              <g transform={anchorTransform} fill={CREAM}>
+                {ANCHOR_PATHS.map((d) => (
+                  <path key={d.slice(0, 12)} d={d} />
+                ))}
+              </g>
+            </>
+          )}
+
+          {focus && focus.disciples.length === 0 && (
+            <text
+              x={center.cx}
+              y={center.cy + 150}
+              textAnchor="middle"
+              fontSize="15"
+              fill={OLIVE}
+              fontWeight={600}
+            >
+              Open Capacity — No Disciples Yet
+            </text>
+          )}
+        </svg>
+      </div>
     </div>
   );
 }
 
 function NodeG({ n, onClick }: { n: RNode; onClick: () => void }) {
   const fill = n.kind === 'mentor' ? OLIVE : n.kind === 'leader' ? INK : GREY;
-  const textColor = n.kind === 'disciple' ? GREY_INK : '#f4efe7';
-  const lh = 12.5;
-  const startY = -((n.lines.length - 1) / 2) * lh;
+  const textColor = n.kind === 'disciple' ? GREY_INK : CREAM;
+  const fs = n.kind === 'leader' ? LEADER_FS : SAT_FS;
+  const startY = -((n.lines.length - 1) / 2) * LINE_H;
   return (
     <g transform={`translate(${n.x} ${n.y})`} onClick={onClick} style={{ cursor: 'pointer' }}>
-      <circle r={n.r} fill={fill} />
+      {/* Cream rim keeps neighbouring circles legible where they nearly touch. */}
+      <circle r={n.r} fill={fill} stroke={CREAM} strokeWidth={2} />
       <text
         textAnchor="middle"
-        fontSize={n.kind === 'leader' ? 12.5 : 11.5}
+        fontSize={fs}
         fontWeight={600}
         fill={textColor}
         style={{ pointerEvents: 'none' }}
       >
         {n.lines.map((line, i) => (
-          <tspan key={i} x={0} y={startY + i * lh} dominantBaseline="middle">
+          <tspan key={i} x={0} y={startY + i * LINE_H} dominantBaseline="middle">
             {line}
           </tspan>
         ))}

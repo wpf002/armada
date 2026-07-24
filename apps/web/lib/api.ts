@@ -2,16 +2,30 @@ export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:400
 
 /** Fetch the API with session cookies included. Throws on non-2xx. */
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  // Only declare a JSON body when there actually is one. Fastify rejects a
+  // bodyless request that claims `content-type: application/json` with a 400,
+  // which is what silently broke every DELETE (remove member, end mentorship).
+  const headers: Record<string, string> = { ...((init?.headers as Record<string, string>) ?? {}) };
+  if (init?.body != null && !('content-type' in headers) && !('Content-Type' in headers)) {
+    headers['content-type'] = 'application/json';
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: 'include',
     ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
   if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText}`);
+    // Surface the API's own message ("That email already belongs to…") when it
+    // sends one; fall back to the status line otherwise.
+    let detail = '';
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (body?.error) detail = body.error;
+    } catch {
+      // non-JSON error body — nothing to add
+    }
+    throw new Error(detail || `${res.status} ${res.statusText}`);
   }
   return (await res.json()) as T;
 }
@@ -56,7 +70,11 @@ export interface Profile {
   groups?: GroupRef[];
   interests?: Array<{ type: string; status: string }>;
   hasMentor?: boolean;
-  discipledBy?: { id: string; name: string } | null;
+  /** Leaders who disciple(d) them — `current: false` means it's completed.
+   *  Not the same as a mentor. */
+  discipledBy?: Array<{ id: string; name: string; current: boolean }>;
+  /** Their mentor, from an active MentorRelationship. */
+  mentoredBy?: { id: string; name: string } | null;
 }
 
 export interface GroupMemberNode {

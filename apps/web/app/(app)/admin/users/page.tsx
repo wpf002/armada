@@ -52,10 +52,16 @@ export default function UsersPage() {
 
   if (err?.includes('403')) return <p className="p-5 text-muted">Admins only.</p>;
 
+  // Only admins are listed: the count answers "how many logins exist", and the
+  // list answers "who can administer this" — the full roster lives in Directory.
+  const admins = users.filter((u) => u.role === 'ADMIN');
+
   return (
     <div className="px-4 pt-4">
       <p className="eyebrow">Users</p>
-      <h1 className="mb-3 display text-2xl text-ink">{users.length} users</h1>
+      <h1 className="mb-3 display text-2xl text-ink">
+        {users.length} {users.length === 1 ? 'User' : 'Users'}
+      </h1>
 
       <form onSubmit={sendInvite} className="mb-4 flex flex-col gap-2 rounded-card border border-line bg-surface p-3">
         <p className="text-xs uppercase tracking-wide text-muted">Invite a login</p>
@@ -76,8 +82,9 @@ export default function UsersPage() {
       )}
       {err && !err.includes('403') && <p className="mb-2 text-sm text-red-600">{err}</p>}
 
+      <p className="eyebrow mb-2">Admins</p>
       <ul className="flex flex-col divide-y divide-line">
-        {users.map((u) => (
+        {admins.map((u) => (
           <li key={u.id} className="flex items-center justify-between py-2">
             <span className="min-w-0">
               <span className="block truncate text-ink-soft">{u.name}</span>
@@ -94,6 +101,7 @@ export default function UsersPage() {
             </select>
           </li>
         ))}
+        {admins.length === 0 && <li className="py-3 text-sm text-muted">No Admins Yet.</li>}
       </ul>
     </div>
   );

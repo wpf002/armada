@@ -63,14 +63,19 @@ export function registerPipelineRoutes(app: FastifyInstance) {
     const edges = await prisma.mentorRelationship.findMany({
       where: { endedAt: null },
       select: {
+        // The edge id lets an admin end this specific mentorship (never delete).
+        id: true,
         mentor: { select: { id: true, firstName: true, lastName: true, preferredName: true } },
         mentee: { select: { id: true, firstName: true, lastName: true, preferredName: true } },
       },
     });
-    const byMentor = new Map<string, { id: string; name: string; mentees: Array<{ id: string; name: string }> }>();
+    const byMentor = new Map<
+      string,
+      { id: string; name: string; mentees: Array<{ id: string; name: string; edgeId: string }> }
+    >();
     for (const e of edges) {
       const cur = byMentor.get(e.mentor.id) ?? { id: e.mentor.id, name: personName(e.mentor), mentees: [] };
-      cur.mentees.push({ id: e.mentee.id, name: personName(e.mentee) });
+      cur.mentees.push({ id: e.mentee.id, name: personName(e.mentee), edgeId: e.id });
       byMentor.set(e.mentor.id, cur);
     }
     return { mentors: [...byMentor.values()].sort((a, b) => a.name.localeCompare(b.name)) };

@@ -50,7 +50,6 @@ function GroupRow({ g }: { g: Hierarchy['groups'][number] }) {
               <li key={l.personId}>
                 <Link href={`/people/${l.personId}`} className="text-ink-soft">
                   {l.name}
-                  {l.role === 'CO_LEADER' && <span className="text-muted"> · Co-Leader</span>}
                 </Link>
               </li>
             ))}

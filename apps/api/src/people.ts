@@ -15,6 +15,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma, type GroupRole } from '@armada/db';
 import {
+  can,
   deriveGroupDisplayName,
   visibleFieldsFor,
   type PersonField,
@@ -185,14 +186,49 @@ export function registerPeopleRoutes(app: FastifyInstance) {
       where: { personId: id, status: { in: ['OPEN', 'IN_PROGRESS'] } },
       select: { type: true, status: true },
     });
-    // Who disciples them (their mentor), if anyone.
+    // Two DIFFERENT relationships, deliberately kept apart:
+    //
+    //  · discipled by — the leaders of the D-group they sit in as a disciple.
+    //  · mentored by  — their mentor, an explicit MentorRelationship edge.
+    //
+    // A leader is typically mentored by someone senior while also being
+    // discipled by no one; conflating the two hides half the graph.
+    // Ended memberships count here: someone who was discipled and has since
+    // gone on to lead was still discipled by that person. History is the
+    // product (invariant #2) — a finished discipleship is a fact, not a gap.
+    const discipleMemberships = await prisma.groupMembership.findMany({
+      where: { personId: id, role: 'DISCIPLE' },
+      orderBy: [{ leftAt: 'desc' }, { joinedAt: 'desc' }],
+      select: { groupId: true, leftAt: true },
+    });
+    const discipledBy: Array<{ id: string; name: string; current: boolean }> = [];
+    for (const m of discipleMemberships) {
+      const leaders = await prisma.groupMembership.findMany({
+        where: { groupId: m.groupId, leftAt: null, role: ACTIVE_LEADER },
+        select: {
+          person: { select: { id: true, firstName: true, lastName: true, preferredName: true } },
+        },
+      });
+      for (const l of leaders) {
+        if (!discipledBy.some((d) => d.id === l.person.id)) {
+          discipledBy.push({
+            id: l.person.id,
+            name: personName(l.person),
+            current: m.leftAt === null,
+          });
+        }
+      }
+    }
+    // Active discipleship first, completed ones after.
+    discipledBy.sort((a, b) => Number(b.current) - Number(a.current));
+
     const mentorEdge = await prisma.mentorRelationship.findFirst({
       where: { menteeId: id, endedAt: null },
       select: {
         mentor: { select: { id: true, firstName: true, lastName: true, preferredName: true } },
       },
     });
-    const discipledBy = mentorEdge
+    const mentoredBy = mentorEdge
       ? { id: mentorEdge.mentor.id, name: personName(mentorEdge.mentor) }
       : null;
 
@@ -200,8 +236,9 @@ export function registerPeopleRoutes(app: FastifyInstance) {
       person: {
         ...serialize(person as never, allowed, groups),
         interests,
-        hasMentor: Boolean(discipledBy),
+        hasMentor: Boolean(mentoredBy),
         discipledBy,
+        mentoredBy,
       },
     };
   });
@@ -211,9 +248,13 @@ export function registerPeopleRoutes(app: FastifyInstance) {
     firstName: z.string().min(1).optional(),
     lastName: z.string().optional(),
     preferredName: z.string().nullable().optional(),
+    // Every field the profile's Details panel shows is editable from it.
+    email: z.string().email().nullable().optional(),
     phone: z.string().nullable().optional(),
     address: z.string().nullable().optional(),
     bio: z.string().nullable().optional(),
+    lookingFor: z.string().nullable().optional(),
+    heardAboutUs: z.string().nullable().optional(),
     occupation: z.string().nullable().optional(),
     churchAffiliation: z.string().nullable().optional(),
     maritalStatus: z
@@ -233,6 +274,15 @@ export function registerPeopleRoutes(app: FastifyInstance) {
     const data = editableSchema.parse(request.body);
     const before = await prisma.person.findUnique({ where: { id } });
     if (!before) return reply.status(404).send({ error: 'not found' });
+
+    // Email is the unique login key — reject a collision with a clear message
+    // rather than letting Prisma throw a raw constraint error.
+    if (data.email) {
+      const clash = await prisma.person.findUnique({ where: { email: data.email } });
+      if (clash && clash.id !== id) {
+        return reply.status(409).send({ error: 'That email already belongs to someone else' });
+      }
+    }
 
     const updated = await prisma.person.update({ where: { id }, data });
     await prisma.auditLog.create({
@@ -270,6 +320,111 @@ export function registerPeopleRoutes(app: FastifyInstance) {
     const photoUrl = `${PUBLIC_BASE}/uploads/${name}`;
     await prisma.person.update({ where: { id }, data: { photoUrl } });
     return { photoUrl };
+  });
+
+  // --- Notes on a person ---------------------------------------------------
+  // Who may read or write a note is decided by `can(...)` over live edges, not
+  // by the caller: an admin anywhere, a leader on their own group's members, a
+  // mentor on their mentees. PRIVATE_TO_AUTHOR notes stay with their author.
+
+  app.get('/people/:id/notes', { preHandler: requireAuth }, async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const viewer = await buildViewer(request.authedUser!);
+    const groups = await subjectGroups(id);
+    const subject: SubjectContext = { personId: id, groupIds: groups.map((g) => g.groupId) };
+    if (!can(viewer, 'note.view', { subject })) {
+      return reply.status(403).send({ error: 'forbidden' });
+    }
+
+    const notes = await prisma.note.findMany({
+      where: { subjectId: id },
+      orderBy: { createdAt: 'desc' },
+    });
+    const visible = notes.filter(
+      (n) =>
+        n.visibility !== 'PRIVATE_TO_AUTHOR' ||
+        n.authorId === viewer.personId ||
+        viewer.role === 'ADMIN',
+    );
+
+    // Resolve author names in one query rather than per note.
+    const authors = await prisma.person.findMany({
+      where: { id: { in: [...new Set(visible.map((n) => n.authorId))] } },
+      select: { id: true, firstName: true, lastName: true, preferredName: true },
+    });
+    const nameById = new Map(authors.map((a) => [a.id, personName(a)]));
+
+    return {
+      notes: visible.map((n) => ({
+        id: n.id,
+        body: n.body,
+        visibility: n.visibility,
+        createdAt: n.createdAt,
+        authorId: n.authorId,
+        authorName: nameById.get(n.authorId) ?? 'Unknown',
+        canDelete: viewer.role === 'ADMIN' || n.authorId === viewer.personId,
+      })),
+      canWrite: can(viewer, 'note.create', { subject }),
+    };
+  });
+
+  app.post('/people/:id/notes', { preHandler: requireAuth }, async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z
+      .object({
+        body: z.string().trim().min(1).max(5000),
+        visibility: z.enum(['PRIVATE_TO_AUTHOR', 'LEADERS', 'ADMINS']).default('LEADERS'),
+      })
+      .parse(request.body);
+
+    const viewer = await buildViewer(request.authedUser!);
+    const groups = await subjectGroups(id);
+    const subject: SubjectContext = { personId: id, groupIds: groups.map((g) => g.groupId) };
+    if (!can(viewer, 'note.create', { subject })) {
+      return reply.status(403).send({ error: 'forbidden' });
+    }
+
+    const note = await prisma.note.create({
+      data: {
+        subjectId: id,
+        authorId: viewer.personId,
+        body: body.body,
+        visibility: body.visibility,
+      },
+    });
+    await prisma.auditLog.create({
+      data: {
+        actorId: viewer.personId,
+        action: 'note.create',
+        entity: 'Note',
+        entityId: note.id,
+        before: undefined,
+        after: { subjectId: id, visibility: note.visibility },
+      },
+    });
+    return { note: { id: note.id } };
+  });
+
+  app.delete('/notes/:noteId', { preHandler: requireAuth }, async (request, reply) => {
+    const { noteId } = z.object({ noteId: z.string().uuid() }).parse(request.params);
+    const viewer = await buildViewer(request.authedUser!);
+    const note = await prisma.note.findUnique({ where: { id: noteId } });
+    if (!note) return reply.status(404).send({ error: 'not found' });
+    if (viewer.role !== 'ADMIN' && note.authorId !== viewer.personId) {
+      return reply.status(403).send({ error: 'forbidden' });
+    }
+    await prisma.note.delete({ where: { id: noteId } });
+    await prisma.auditLog.create({
+      data: {
+        actorId: viewer.personId,
+        action: 'note.delete',
+        entity: 'Note',
+        entityId: noteId,
+        before: { subjectId: note.subjectId },
+        after: undefined,
+      },
+    });
+    return { ok: true };
   });
 
   // --- Admin: list directory including REMOVED / merge tombstones ---
