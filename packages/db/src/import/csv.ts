@@ -75,6 +75,19 @@ function normalizePhone(v: string | undefined): string | null {
   return s.startsWith('+') ? s : null;
 }
 
+const MARITAL: Record<string, string> = {
+  single: 'SINGLE',
+  married: 'MARRIED',
+  engaged: 'ENGAGED',
+  divorced: 'DIVORCED',
+  widowed: 'WIDOWED',
+};
+
+function normalizeMarital(v: string | undefined): string | null {
+  const s = clean(v);
+  return s ? (MARITAL[s.toLowerCase()] ?? null) : null;
+}
+
 /** Find a column index by any of the given header aliases. */
 function col(headers: string[], ...aliases: string[]): number {
   const lower = headers.map((h) => h.trim().toLowerCase());
@@ -106,6 +119,12 @@ async function main() {
   const iLast = col(headers, 'last name', 'last');
   const iEmail = col(headers, 'email', 'email address');
   const iPhone = col(headers, 'phone', 'phone number');
+  // Optional profile columns — the membership questionnaire carries these.
+  const iAddress = col(headers, 'address', 'home address');
+  const iMarital = col(headers, 'marital status', 'martial status');
+  const iOccupation = col(headers, 'occupation', 'job occupation');
+  const iChurch = col(headers, 'church membership', 'church affiliation', 'church');
+  const iLooking = col(headers, 'interest if not in group', 'interest', 'what are you looking for in armada?');
 
   if (iName < 0 && iFirst < 0) {
     console.error(`No name column found. Headers: ${headers.join(', ')}`);
@@ -124,6 +143,14 @@ async function main() {
     const email = iEmail >= 0 ? normalizeEmail(r[iEmail]) : null;
     const phone = iPhone >= 0 ? normalizePhone(r[iPhone]) : null;
     if (!rawName && !email) continue;
+
+    // Profile extras, only present on richer exports.
+    const extras: Record<string, unknown> = {};
+    if (iAddress >= 0) extras.address = clean(r[iAddress]);
+    if (iMarital >= 0) extras.maritalStatus = normalizeMarital(r[iMarital]);
+    if (iOccupation >= 0) extras.occupation = clean(r[iOccupation]);
+    if (iChurch >= 0) extras.churchAffiliation = clean(r[iChurch]);
+    if (iLooking >= 0) extras.lookingFor = clean(r[iLooking]);
 
     const people: CandidatePerson[] = await prisma.person.findMany({
       where: { mergedIntoId: null, status: { not: 'REMOVED' } },
@@ -148,6 +175,9 @@ async function main() {
       const data: Record<string, unknown> = {};
       if (cur && !cur.email && email) data.email = email;
       if (cur && !cur.phone && phone) data.phone = phone;
+      for (const [k, v] of Object.entries(extras)) {
+        if (v != null && cur && (cur as Record<string, unknown>)[k] == null) data[k] = v;
+      }
       if (Object.keys(data).length) {
         await prisma.person.update({ where: { id: top.personId }, data });
         enriched++;
@@ -166,7 +196,8 @@ async function main() {
           email: emailTaken ? null : email,
           phone,
           status: 'PROSPECT',
-        },
+          ...Object.fromEntries(Object.entries(extras).filter(([, v]) => v != null)),
+        } as never,
       });
       created++;
       console.log(`   + ${display} (new)`);
