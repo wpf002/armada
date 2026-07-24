@@ -261,7 +261,11 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
               )}
               {person.email && (
                 <Row label="Email">
-                  <span className="break-all">{person.email}</span>
+                  {/* One line, whole address, no ellipsis. A pathologically
+                      long address scrolls sideways rather than being cut. */}
+                  <span className="block overflow-x-auto whitespace-nowrap text-[15px]">
+                    {person.email}
+                  </span>
                 </Row>
               )}
               {shown.map(([label, value]) =>
@@ -489,7 +493,7 @@ function Badge({
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-3 px-4 py-3">
-      <span className="w-28 shrink-0 text-sm text-muted">{label}</span>
+      <span className="w-24 shrink-0 text-sm text-muted">{label}</span>
       <span className="min-w-0 flex-1 break-words text-ink-soft">{children}</span>
     </div>
   );
