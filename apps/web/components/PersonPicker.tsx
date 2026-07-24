@@ -14,6 +14,7 @@ export function PersonPicker({
   value,
   onChange,
   exclude = [],
+  only,
   placeholder = 'Search People…',
 }: {
   label?: string;
@@ -21,6 +22,8 @@ export function PersonPicker({
   onChange: (p: DirectoryPerson | null) => void;
   /** Person ids that cannot be chosen (e.g. the already-picked mentor). */
   exclude?: string[];
+  /** When set, ONLY these person ids may be chosen (e.g. leaders only). */
+  only?: string[];
   placeholder?: string;
 }) {
   const [people, setPeople] = useState<DirectoryPerson[]>([]);
@@ -32,18 +35,21 @@ export function PersonPicker({
       .catch(() => {});
   }, []);
 
-  // Content key so a fresh-but-identical `exclude` array doesn't re-filter.
+  // Content keys so fresh-but-identical arrays don't re-trigger the filter.
   const excludeKey = exclude.join(',');
+  const onlyKey = only ? only.join(',') : null;
 
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return [];
+    const allowed = onlyKey === null ? null : new Set(onlyKey.split(','));
     return people
       .filter((p) => !excludeKey.split(',').includes(p.id))
+      .filter((p) => allowed === null || allowed.has(p.id))
       .filter((p) => personDisplayName(p).toLowerCase().includes(needle))
       .slice(0, 8);
-    // `exclude` is a fresh array each render; compare by content, not identity.
-  }, [q, people, excludeKey]);
+    // `exclude`/`only` are fresh arrays each render; compare by content.
+  }, [q, people, excludeKey, onlyKey]);
 
   if (value) {
     return (

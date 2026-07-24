@@ -19,7 +19,7 @@ const MAIN: Item[] = [
   { href: '/groups', label: 'Groups', icon: 'groups' },
   { href: '/calendar', label: 'Calendar', icon: 'calendar' },
   { href: '/pipeline', label: 'Discipleship', icon: 'pipeline' },
-  { href: '/profile', label: 'Profile', icon: 'me' },
+  // No Profile entry — the name at the foot of the drawer already goes there.
 ];
 
 const ADMIN: Item[] = [

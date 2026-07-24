@@ -23,6 +23,9 @@ interface Mentor {
   mentees: Array<{ id: string; name: string; edgeId: string }>;
 }
 
+/** All three admin "add" buttons share this, so they always look the same. */
+const ADD_BTN = 'mb-3 w-full rounded-lg bg-deep py-2.5 text-sm font-medium text-cream';
+
 const TABS: Array<{ key: View; label: string }> = [
   { key: 'groups', label: 'Groups' },
   { key: 'leaders', label: 'Leaders' },
@@ -48,9 +51,15 @@ export default function GroupsPage() {
   const [addingMentor, setAddingMentor] = useState(false);
 
   const load = useCallback(() => {
-    api<Hierarchy>('/hierarchy').then(setData).catch((e) => setError(String(e)));
-    api<{ leaders: Leader[] }>('/leaders').then((r) => setLeaders(r.leaders)).catch(() => {});
-    api<{ mentors: Mentor[] }>('/mentors').then((r) => setMentors(r.mentors)).catch(() => {});
+    api<Hierarchy>('/hierarchy')
+      .then(setData)
+      .catch((e) => setError(String(e)));
+    api<{ leaders: Leader[] }>('/leaders')
+      .then((r) => setLeaders(r.leaders))
+      .catch(() => {});
+    api<{ mentors: Mentor[] }>('/mentors')
+      .then((r) => setMentors(r.mentors))
+      .catch(() => {});
   }, []);
 
   useEffect(() => load(), [load]);
@@ -70,6 +79,9 @@ export default function GroupsPage() {
     const r = await api<{ group: { id: string } }>('/groups', { method: 'POST', body: '{}' });
     router.push(`/groups/${r.group.id}`);
   }
+
+  // Only leaders can be mentored, so the mentee pickers offer only leaders.
+  const leaderIds = leaders.map((l) => l.id);
 
   const heading =
     view === 'groups'
@@ -92,7 +104,9 @@ export default function GroupsPage() {
             key={t.key}
             onClick={() => selectView(t.key)}
             className={`rounded-full px-2 py-2 text-center text-[13px] font-medium transition-colors ${
-              view === t.key ? 'bg-deep text-cream' : 'border border-line text-ink-soft hover:bg-sand/60'
+              view === t.key
+                ? 'bg-deep text-cream'
+                : 'border border-line text-ink-soft hover:bg-sand/60'
             }`}
           >
             {t.label}
@@ -108,7 +122,7 @@ export default function GroupsPage() {
         {view === 'groups' && data && (
           <>
             {isAdmin && (
-              <button onClick={createGroup} className="mb-3 w-full rounded-lg bg-deep py-2.5 text-sm font-medium text-cream">
+              <button onClick={createGroup} className={ADD_BTN}>
                 + New Group
               </button>
             )}
@@ -118,67 +132,84 @@ export default function GroupsPage() {
 
         {/* Who is leading a group */}
         {view === 'leaders' && (
-          <div className="card divide-y divide-line">
+          <>
             {isAdmin && (
-              <div className="p-3">
-                <button
-                  onClick={() => setAddingLeader((a) => !a)}
-                  className="w-full rounded-lg border border-deep py-2 text-sm font-medium text-deep"
-                >
+              <>
+                <button onClick={() => setAddingLeader((a) => !a)} className={ADD_BTN}>
                   {addingLeader ? 'Cancel' : '+ Add Leader'}
                 </button>
                 {addingLeader && data && (
-                  <AddLeader
-                    groups={data.groups}
-                    onDone={() => {
-                      setAddingLeader(false);
-                      load();
-                    }}
-                  />
+                  <div className="card mb-3 p-3">
+                    <AddLeader
+                      groups={data.groups}
+                      onDone={() => {
+                        setAddingLeader(false);
+                        load();
+                      }}
+                    />
+                  </div>
                 )}
-              </div>
+              </>
             )}
-            {leaders.map((l) => (
-              <Link key={l.id} href={`/people/${l.id}`} className="flex items-center justify-between px-4 py-3">
-                <span className="min-w-0">
-                  <span className="block truncate font-medium text-ink">{l.name}</span>
-                  <span className="block truncate text-sm text-muted">{l.groups.join(' · ')}</span>
-                </span>
-                <span className="shrink-0 text-muted">›</span>
-              </Link>
-            ))}
-            {leaders.length === 0 && <p className="px-4 py-5 text-sm text-muted">No Leaders Yet.</p>}
-          </div>
+            <div className="card divide-y divide-line">
+              {leaders.map((l) => (
+                <Link
+                  key={l.id}
+                  href={`/people/${l.id}`}
+                  className="flex items-center justify-between px-4 py-3"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-ink">{l.name}</span>
+                    <span className="block truncate text-sm text-muted">
+                      {l.groups.join(' · ')}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-muted">›</span>
+                </Link>
+              ))}
+              {leaders.length === 0 && (
+                <p className="px-4 py-5 text-sm text-muted">No Leaders Yet.</p>
+              )}
+            </div>
+          </>
         )}
 
         {/* Who's mentoring leaders */}
         {view === 'mentors' && (
-          <div className="flex flex-col gap-2.5">
+          <>
             {isAdmin && (
-              <div className="card p-3">
-                <button
-                  onClick={() => setAddingMentor((a) => !a)}
-                  className="w-full rounded-lg border border-deep py-2 text-sm font-medium text-deep"
-                >
+              <>
+                <button onClick={() => setAddingMentor((a) => !a)} className={ADD_BTN}>
                   {addingMentor ? 'Cancel' : '+ Add Mentor'}
                 </button>
                 {addingMentor && (
-                  <AddMentorship
-                    onDone={() => {
-                      setAddingMentor(false);
-                      load();
-                    }}
-                  />
+                  <div className="card mb-3 p-3">
+                    <AddMentorship
+                      leaderIds={leaderIds}
+                      onDone={() => {
+                        setAddingMentor(false);
+                        load();
+                      }}
+                    />
+                  </div>
                 )}
-              </div>
+              </>
             )}
-            {mentors.map((m) => (
-              <MentorCard key={m.id} mentor={m} isAdmin={isAdmin} onChanged={load} />
-            ))}
-            {mentors.length === 0 && (
-              <p className="card px-4 py-5 text-sm text-muted">No Mentor Relationships Yet.</p>
-            )}
-          </div>
+            <div className="flex flex-col gap-2.5">
+              {mentors.map((m) => (
+                <MentorCard
+                  key={m.id}
+                  mentor={m}
+                  isAdmin={isAdmin}
+                  leaderIds={leaderIds}
+                  onChanged={load}
+                />
+              ))}
+              {mentors.length === 0 && (
+                <p className="card px-4 py-5 text-sm text-muted">No Mentor Relationships Yet.</p>
+              )}
+            </div>
+          </>
         )}
 
         {/* The network hierarchy */}
@@ -214,10 +245,12 @@ export default function GroupsPage() {
 function MentorCard({
   mentor,
   isAdmin,
+  leaderIds,
   onChanged,
 }: {
   mentor: Mentor;
   isAdmin: boolean;
+  leaderIds: string[];
   onChanged: () => void;
 }) {
   const [adding, setAdding] = useState(false);
@@ -305,7 +338,8 @@ function MentorCard({
             value={pick}
             onChange={setPick}
             exclude={[mentor.id, ...mentor.mentees.map((x) => x.id)]}
-            placeholder="Who Do They Mentor?"
+            only={leaderIds}
+            placeholder="Which Leader Do They Mentor?"
           />
           {pick && (
             <button
@@ -322,7 +356,10 @@ function MentorCard({
       <ul className="mt-2 flex flex-col divide-y divide-line text-sm">
         {mentor.mentees.map((x) => (
           <li key={x.edgeId} className="flex items-center justify-between py-1.5">
-            <Link href={`/people/${x.id}`} className="text-ink-soft underline-offset-2 hover:underline">
+            <Link
+              href={`/people/${x.id}`}
+              className="text-ink-soft underline-offset-2 hover:underline"
+            >
               {x.name}
             </Link>
             {isAdmin && (
@@ -345,13 +382,7 @@ function MentorCard({
  * Make someone a leader of a group. Armada has no head-leader/co-leader
  * distinction — everyone leading a group is simply a leader.
  */
-function AddLeader({
-  groups,
-  onDone,
-}: {
-  groups: Hierarchy['groups'];
-  onDone: () => void;
-}) {
+function AddLeader({ groups, onDone }: { groups: Hierarchy['groups']; onDone: () => void }) {
   const [person, setPerson] = useState<DirectoryPerson | null>(null);
   const [groupId, setGroupId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -407,7 +438,7 @@ function AddLeader({
 }
 
 /** Pair a mentor with the leader they mentor. */
-function AddMentorship({ onDone }: { onDone: () => void }) {
+function AddMentorship({ leaderIds, onDone }: { leaderIds: string[]; onDone: () => void }) {
   const [mentor, setMentor] = useState<DirectoryPerson | null>(null);
   const [mentee, setMentee] = useState<DirectoryPerson | null>(null);
   const [busy, setBusy] = useState(false);
@@ -443,6 +474,8 @@ function AddMentorship({ onDone }: { onDone: () => void }) {
         value={mentee}
         onChange={setMentee}
         exclude={mentor ? [mentor.id] : []}
+        only={leaderIds}
+        placeholder="Search Leaders…"
       />
       {err && <p className="text-sm text-red-600">{err}</p>}
       <button

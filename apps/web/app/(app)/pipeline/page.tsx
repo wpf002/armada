@@ -14,7 +14,8 @@ interface Interest {
 
 const STAGES: Array<{ key: Interest['status']; label: string }> = [
   { key: 'OPEN', label: 'Open' },
-  { key: 'IN_PROGRESS', label: 'In Progress' },
+  // The stored status stays IN_PROGRESS; Armada calls this stage Onboarding.
+  { key: 'IN_PROGRESS', label: 'Onboarding' },
   { key: 'PLACED', label: 'Placed' },
 ];
 

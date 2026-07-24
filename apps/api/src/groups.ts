@@ -183,6 +183,16 @@ export function registerGroupRoutes(app: FastifyInstance) {
       .object({ mentorId: z.string().uuid(), menteeId: z.string().uuid() })
       .parse(request.body);
     if (mentorId === menteeId) return reply.status(400).send({ error: 'a person cannot mentor themselves' });
+    // Mentorship in Armada is leader care: you mentor someone who leads a
+    // group. Enforced here, not just in the picker, so the rule holds for any
+    // caller.
+    const menteeLeads = await prisma.groupMembership.findFirst({
+      where: { personId: menteeId, leftAt: null, role: { in: ['LEADER', 'CO_LEADER'] } },
+      select: { id: true },
+    });
+    if (!menteeLeads) {
+      return reply.status(400).send({ error: 'Only a leader can be mentored' });
+    }
     const existing = await prisma.mentorRelationship.findFirst({
       where: { mentorId, menteeId, endedAt: null },
     });
