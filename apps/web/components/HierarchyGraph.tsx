@@ -356,7 +356,7 @@ export function HierarchyGraph({
             ← All Groups
           </button>
         ) : (
-          <span className="text-xs text-muted">Tap A Group · Drag To Move</span>
+          <span />
         )}
         <div className="flex items-center gap-1 rounded-full border border-line bg-surface px-1 py-1">
           <button

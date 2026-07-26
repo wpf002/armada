@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 interface Interest {
   id: string;
@@ -24,6 +25,8 @@ export default function PipelinePage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<Interest['status'] | null>(null);
+  const [removing, setRemoving] = useState<Interest | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
 
   const load = useCallback(() => {
     api<{ interests: Interest[] }>('/interests?type=WANTS_DISCIPLESHIP').then((r) =>
@@ -39,6 +42,23 @@ export default function PipelinePage() {
       load();
     } finally {
       setBusy(null);
+    }
+  }
+
+  // Remove from the queue = mark the interest DECLINED. It drops off the board
+  // but the record survives (invariant #2, no hard deletes).
+  async function confirmRemove() {
+    if (!removing) return;
+    setRemoveBusy(true);
+    try {
+      await api(`/interests/${removing.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'DECLINED' }),
+      });
+      setRemoving(null);
+      load();
+    } finally {
+      setRemoveBusy(false);
     }
   }
 
@@ -101,6 +121,13 @@ export default function PipelinePage() {
                           </span>
                         )}
                       </Link>
+                      <button
+                        onClick={() => setRemoving(i)}
+                        aria-label={`Remove ${i.person.name} from the queue`}
+                        className="-mr-1 -mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-base leading-none text-muted hover:bg-sand hover:text-red-600"
+                      >
+                        ×
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -114,6 +141,16 @@ export default function PipelinePage() {
           );
         })}
       </div>
+
+      <ConfirmDialog
+        open={removing !== null}
+        title={`Remove ${removing?.person.name ?? ''}?`}
+        message={`${removing?.person.name} will be taken off the discipleship queue. You can re-add them from their profile.`}
+        confirmLabel="Remove"
+        busy={removeBusy}
+        onConfirm={confirmRemove}
+        onCancel={() => setRemoving(null)}
+      />
     </div>
   );
 }

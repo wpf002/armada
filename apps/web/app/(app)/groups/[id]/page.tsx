@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { api, personDisplayName, type DirectoryPerson, type GroupDetail } from '@/lib/api';
 import { useSession } from '@/lib/auth-client';
 import type { SessionUser } from '@/lib/auth-client';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 export default function GroupPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -16,6 +17,13 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(false);
+  // The member the admin is about to remove — drives the confirm dialog.
+  const [pendingRemoval, setPendingRemoval] = useState<{
+    personId: string;
+    name: string;
+    role: 'leader' | 'disciple';
+  } | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   const load = useCallback(() => {
     api<{ group: GroupDetail }>(`/groups/${id}`)
@@ -32,9 +40,16 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
   const canManage =
     user?.role === 'ADMIN' || group.leaders.some((l) => l.personId === user?.personId);
 
-  async function removeMember(personId: string) {
-    await api(`/groups/${id}/members/${personId}`, { method: 'DELETE' });
-    load();
+  async function confirmRemoval() {
+    if (!pendingRemoval) return;
+    setRemoving(true);
+    try {
+      await api(`/groups/${id}/members/${pendingRemoval.personId}`, { method: 'DELETE' });
+      setPendingRemoval(null);
+      load();
+    } finally {
+      setRemoving(false);
+    }
   }
 
   return (
@@ -75,7 +90,11 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
             key={l.personId}
             name={l.name}
             personId={l.personId}
-            onRemove={canManage ? () => removeMember(l.personId) : undefined}
+            onRemove={
+              canManage
+                ? () => setPendingRemoval({ personId: l.personId, name: l.name, role: 'leader' })
+                : undefined
+            }
           />
         ))}
       </Section>
@@ -91,7 +110,11 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
             key={d.personId}
             name={d.name}
             personId={d.personId}
-            onRemove={canManage ? () => removeMember(d.personId) : undefined}
+            onRemove={
+              canManage
+                ? () => setPendingRemoval({ personId: d.personId, name: d.name, role: 'disciple' })
+                : undefined
+            }
           />
         ))}
       </Section>
@@ -105,6 +128,19 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
         </button>
       )}
       {adding && canManage && <AddMember groupId={id} onadded={() => { setAdding(false); load(); }} />}
+
+      <ConfirmDialog
+        open={pendingRemoval !== null}
+        title={`Remove ${pendingRemoval?.name ?? ''}?`}
+        message={
+          pendingRemoval?.role === 'leader'
+            ? `${pendingRemoval?.name} will no longer lead ${group.displayName}. Their membership ends; nothing is deleted.`
+            : `${pendingRemoval?.name} will be removed from ${group.displayName}. Their membership ends; nothing is deleted.`
+        }
+        busy={removing}
+        onConfirm={confirmRemoval}
+        onCancel={() => setPendingRemoval(null)}
+      />
     </div>
   );
 }

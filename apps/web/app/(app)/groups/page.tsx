@@ -8,6 +8,7 @@ import { useSession, type SessionUser } from '@/lib/auth-client';
 import { HierarchyGraph } from '@/components/HierarchyGraph';
 import { HierarchyAccordion } from '@/components/HierarchyAccordion';
 import { PersonPicker } from '@/components/PersonPicker';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 type View = 'groups' | 'leaders' | 'mentors' | 'map';
 
@@ -256,6 +257,10 @@ function MentorCard({
   const [adding, setAdding] = useState(false);
   const [pick, setPick] = useState<DirectoryPerson | null>(null);
   const [busy, setBusy] = useState(false);
+  // A single mentee pending removal, or 'ALL' for the whole mentor block.
+  const [confirming, setConfirming] = useState<
+    { kind: 'one'; edgeId: string; name: string } | { kind: 'all' } | null
+  >(null);
 
   async function addMentee() {
     if (!pick) return;
@@ -273,27 +278,23 @@ function MentorCard({
     }
   }
 
-  async function remove(edgeId: string) {
-    await api(`/admin/mentorships/${edgeId}`, { method: 'DELETE' });
-    onChanged();
-  }
-
   /**
-   * Drop the whole block: end every mentorship this person holds. Nobody is
-   * deleted (invariant #2) — the edges are closed, so they simply stop being a
-   * mentor and fall out of this list.
+   * Resolve whichever removal was confirmed. Removing the whole block ends
+   * every mentorship this person holds; nobody is deleted (invariant #2) — the
+   * edges close, so they simply stop being a mentor and fall out of the list.
    */
-  async function removeMentor() {
-    const n = mentor.mentees.length;
-    const ok = window.confirm(
-      `Remove ${mentor.name} as a mentor? This ends ${n} mentorship${n === 1 ? '' : 's'}. Nobody is deleted.`,
-    );
-    if (!ok) return;
+  async function confirmRemoval() {
+    if (!confirming) return;
     setBusy(true);
     try {
-      for (const x of mentor.mentees) {
-        await api(`/admin/mentorships/${x.edgeId}`, { method: 'DELETE' });
+      if (confirming.kind === 'one') {
+        await api(`/admin/mentorships/${confirming.edgeId}`, { method: 'DELETE' });
+      } else {
+        for (const x of mentor.mentees) {
+          await api(`/admin/mentorships/${x.edgeId}`, { method: 'DELETE' });
+        }
       }
+      setConfirming(null);
       onChanged();
     } finally {
       setBusy(false);
@@ -321,7 +322,7 @@ function MentorCard({
               {adding ? '×' : '+'}
             </button>
             <button
-              onClick={removeMentor}
+              onClick={() => setConfirming({ kind: 'all' })}
               disabled={busy}
               aria-label={`Remove ${mentor.name} as a mentor`}
               className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-lg leading-none text-muted hover:border-red-500 hover:text-red-600 disabled:opacity-40"
@@ -364,7 +365,7 @@ function MentorCard({
             </Link>
             {isAdmin && (
               <button
-                onClick={() => remove(x.edgeId)}
+                onClick={() => setConfirming({ kind: 'one', edgeId: x.edgeId, name: x.name })}
                 aria-label={`Remove ${x.name}`}
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-base leading-none text-muted hover:bg-sand hover:text-red-600"
               >
@@ -374,6 +375,25 @@ function MentorCard({
           </li>
         ))}
       </ul>
+
+      <ConfirmDialog
+        open={confirming !== null}
+        title={
+          confirming?.kind === 'one'
+            ? `Stop mentoring ${confirming.name}?`
+            : `Remove ${mentor.name} as a mentor?`
+        }
+        message={
+          confirming?.kind === 'one'
+            ? `${mentor.name} will no longer mentor ${confirming.name}. Nobody is deleted.`
+            : `This ends ${mentor.mentees.length} mentorship${
+                mentor.mentees.length === 1 ? '' : 's'
+              }. Nobody is deleted.`
+        }
+        busy={busy}
+        onConfirm={confirmRemoval}
+        onCancel={() => setConfirming(null)}
+      />
     </div>
   );
 }
