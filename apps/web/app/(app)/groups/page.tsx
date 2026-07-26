@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { api, type DirectoryPerson, type Hierarchy } from '@/lib/api';
+import { api, personDisplayName, type DirectoryPerson, type Hierarchy } from '@/lib/api';
 import { useSession, type SessionUser } from '@/lib/auth-client';
 import { HierarchyGraph } from '@/components/HierarchyGraph';
 import { HierarchyAccordion } from '@/components/HierarchyAccordion';
@@ -50,6 +50,7 @@ export default function GroupsPage() {
   const [error, setError] = useState<string | null>(null);
   const [addingLeader, setAddingLeader] = useState(false);
   const [addingMentor, setAddingMentor] = useState(false);
+  const [creatingGroup, setCreatingGroup] = useState(false);
 
   const load = useCallback(() => {
     api<Hierarchy>('/hierarchy')
@@ -73,12 +74,6 @@ export default function GroupsPage() {
   function selectView(next: View) {
     setView(next);
     router.replace(`/groups?view=${next}`, { scroll: false });
-  }
-
-  /** New groups start empty — the leader is added on the detail page next. */
-  async function createGroup() {
-    const r = await api<{ group: { id: string } }>('/groups', { method: 'POST', body: '{}' });
-    router.push(`/groups/${r.group.id}`);
   }
 
   // Only leaders can be mentored, so the mentee pickers offer only leaders.
@@ -128,9 +123,21 @@ export default function GroupsPage() {
         {view === 'groups' && data && (
           <>
             {isAdmin && (
-              <button onClick={createGroup} className={ADD_BTN}>
-                + New Group
-              </button>
+              <>
+                <button onClick={() => setCreatingGroup((c) => !c)} className={ADD_BTN}>
+                  {creatingGroup ? 'Cancel' : '+ New Group'}
+                </button>
+                {creatingGroup && (
+                  <div className="card mb-3 p-3">
+                    <NewGroup
+                      onDone={(id) => {
+                        setCreatingGroup(false);
+                        router.push(`/groups/${id}`);
+                      }}
+                    />
+                  </div>
+                )}
+              </>
             )}
             <HierarchyAccordion hierarchy={data} />
           </>
@@ -394,6 +401,89 @@ function MentorCard({
         onConfirm={confirmRemoval}
         onCancel={() => setConfirming(null)}
       />
+    </div>
+  );
+}
+
+/**
+ * Create a group by naming who leads it. A group is identified by its leaders
+ * (invariant #8) — its display name is derived from them — so creating one
+ * without any would produce an "Unassigned Group" that reads like a bug.
+ * Co-leadership is the default assumption (invariant #9), hence a list.
+ */
+function NewGroup({ onDone }: { onDone: (groupId: string) => void }) {
+  const [picked, setPicked] = useState<DirectoryPerson[]>([]);
+  const [pick, setPick] = useState<DirectoryPerson | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  function addPick(p: DirectoryPerson | null) {
+    if (!p) return;
+    setPicked((cur) => (cur.some((x) => x.id === p.id) ? cur : [...cur, p]));
+    setPick(null);
+  }
+
+  async function create() {
+    if (picked.length === 0) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api<{ group: { id: string } }>('/groups', { method: 'POST', body: '{}' });
+      for (const p of picked) {
+        await api(`/groups/${r.group.id}/members`, {
+          method: 'POST',
+          body: JSON.stringify({ personId: p.id, role: 'LEADER' }),
+        });
+      }
+      onDone(r.group.id);
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs uppercase tracking-wide text-muted">
+        {picked.length > 1 ? 'Leaders' : 'Leader'}
+      </p>
+
+      {picked.length > 0 && (
+        <ul className="flex flex-wrap gap-2">
+          {picked.map((p) => (
+            <li
+              key={p.id}
+              className="flex items-center gap-1.5 rounded-full border border-deep bg-sand/50 py-1 pl-3 pr-1.5 text-sm"
+            >
+              <span className="font-medium text-ink">{personDisplayName(p)}</span>
+              <button
+                onClick={() => setPicked((cur) => cur.filter((x) => x.id !== p.id))}
+                aria-label={`Remove ${personDisplayName(p)}`}
+                className="flex h-5 w-5 items-center justify-center rounded-full text-muted hover:bg-sand hover:text-red-600"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <PersonPicker
+        value={pick}
+        onChange={addPick}
+        exclude={picked.map((p) => p.id)}
+        placeholder={picked.length ? 'Add Another Leader…' : 'Search People…'}
+      />
+
+      {err && <p className="text-sm text-red-600">{err}</p>}
+      <button
+        onClick={create}
+        disabled={picked.length === 0 || busy}
+        className="rounded-lg bg-deep py-2.5 text-sm font-medium text-cream disabled:opacity-40"
+      >
+        {busy ? 'Creating…' : 'Create Group'}
+      </button>
     </div>
   );
 }
