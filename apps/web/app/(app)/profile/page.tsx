@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { API_BASE, api, personDisplayName, type Profile } from '@/lib/api';
-import { useSession } from '@/lib/auth-client';
+import { authClient, useSession } from '@/lib/auth-client';
 import type { SessionUser } from '@/lib/auth-client';
 import { Avatar } from '@/components/Avatar';
 
@@ -47,7 +47,6 @@ export default function ProfilePage() {
   const [dash, setDash] = useState<Dashboard | null>(null);
   const [followups, setFollowups] = useState<FollowUp[]>([]);
   const [wants, setWants] = useState<Interest[]>([]);
-  const [intake, setIntake] = useState(0);
   const [tab, setTab] = useState<'work' | 'details'>('work');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -67,14 +66,6 @@ export default function ProfilePage() {
     api<{ person: Profile }>(`/people/${user.personId}`).then((r) => setPerson(r.person));
     loadWork();
   }, [user?.personId, loadWork]);
-
-  useEffect(() => {
-    if (user?.role === 'ADMIN') {
-      api<{ registrants: unknown[] }>('/registrations')
-        .then((r) => setIntake(r.registrants.length))
-        .catch(() => {});
-    }
-  }, [user?.role]);
 
   if (!user || !person) return <p className="p-5 text-muted">Loading…</p>;
 
@@ -133,7 +124,7 @@ export default function ProfilePage() {
 
   const isLeader = (dash?.myGroups.length ?? 0) > 0;
   const isAdmin = user.role === 'ADMIN';
-  const hasWork = followups.length > 0 || (isAdmin && (wants.length > 0 || intake > 0));
+  const hasWork = followups.length > 0 || (isAdmin && wants.length > 0);
 
   return (
     <div className="px-4 pt-5">
@@ -213,17 +204,6 @@ export default function ProfilePage() {
                   </Link>
                 )}
 
-                {isAdmin && intake > 0 && (
-                  <Link href="/registrations" className="flex items-center justify-between px-4 py-3">
-                    <span>
-                      <span className="block font-medium text-ink">
-                        {intake} Registration{intake === 1 ? '' : 's'}
-                      </span>
-                      <span className="text-sm text-muted">From The Armada Sign-Up Form</span>
-                    </span>
-                    <span className="text-muted">›</span>
-                  </Link>
-                )}
               </div>
             </section>
           ) : (
@@ -317,7 +297,94 @@ export default function ProfilePage() {
           </button>
         </form>
       )}
+
+      {tab === 'details' && <ChangePassword />}
     </div>
+  );
+}
+
+/** Change your own login password. Everyone can do this on their own profile. */
+function ChangePassword() {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setMsg(null);
+    if (next.length < 8) {
+      setMsg({ tone: 'err', text: 'New password must be at least 8 characters.' });
+      return;
+    }
+    if (next !== confirm) {
+      setMsg({ tone: 'err', text: 'New passwords don’t match.' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await authClient.changePassword({
+        currentPassword: current,
+        newPassword: next,
+        revokeOtherSessions: true,
+      });
+      if (error) {
+        setMsg({ tone: 'err', text: error.message || 'Could not change password.' });
+      } else {
+        setMsg({ tone: 'ok', text: 'Password changed.' });
+        setCurrent('');
+        setNext('');
+        setConfirm('');
+      }
+    } catch {
+      setMsg({ tone: 'err', text: 'Could not change password.' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const field = 'min-h-[46px] rounded-full border border-line bg-surface px-4 outline-none focus:border-deep';
+
+  return (
+    <form onSubmit={submit} className="mt-6 flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
+      <p className="eyebrow">Change Password</p>
+      <input
+        type="password"
+        autoComplete="current-password"
+        placeholder="Current password"
+        value={current}
+        onChange={(e) => setCurrent(e.target.value)}
+        className={field}
+      />
+      <input
+        type="password"
+        autoComplete="new-password"
+        placeholder="New password"
+        value={next}
+        onChange={(e) => setNext(e.target.value)}
+        className={field}
+      />
+      <input
+        type="password"
+        autoComplete="new-password"
+        placeholder="Confirm new password"
+        value={confirm}
+        onChange={(e) => setConfirm(e.target.value)}
+        className={field}
+      />
+      {msg && (
+        <p className={`text-sm ${msg.tone === 'ok' ? 'text-olive' : 'text-red-600'}`}>{msg.text}</p>
+      )}
+      <button
+        type="submit"
+        disabled={busy || !current || !next}
+        className="btn-ghost h-11 min-h-0 self-start px-5 text-sm disabled:opacity-50"
+      >
+        {busy ? 'Updating…' : 'Update Password'}
+      </button>
+    </form>
   );
 }
 
