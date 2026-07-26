@@ -93,6 +93,11 @@ export default function GroupsPage() {
           ? `${mentors.length} Mentors`
           : 'The Fleet';
 
+  // Members don't manage groups. `fullGraph` is the server's own signal — true
+  // for admins, leaders and mentors — so a MEMBER-role person who actually
+  // leads a group (invariant #3) still gets in.
+  if (data && !data.fullGraph) return <p className="p-5 text-muted">Leaders Only.</p>;
+
   return (
     <div className="px-4 pt-5">
       <p className="eyebrow">Discipleship Groups</p>
@@ -233,11 +238,6 @@ export default function GroupsPage() {
         )}
       </div>
 
-      {data && !data.fullGraph && (
-        <p className="mt-4 text-sm text-muted">
-          You&apos;re Seeing Your Own Group. Leaders And Mentors See The Whole Org.
-        </p>
-      )}
     </div>
   );
 }

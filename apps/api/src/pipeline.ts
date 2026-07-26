@@ -82,7 +82,10 @@ export function registerPipelineRoutes(app: FastifyInstance) {
   });
 
   // ---- §1 Q4: the discipleship pipeline board ----
-  app.get('/interests', { preHandler: requireAuth }, async (request) => {
+  // The discipleship board is an admin view: it lists everyone who has asked to
+  // be discipled, across the whole org. Reading it was previously open to any
+  // authenticated user — gate it here, not just by hiding the nav link.
+  app.get('/interests', { preHandler: requireRole('ADMIN') }, async (request) => {
     const { type, status } = z
       .object({
         type: z.enum(['WANTS_DISCIPLESHIP', 'WANTS_TO_LEAD', 'WANTS_MENTOR']).optional(),

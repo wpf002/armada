@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { useSession } from '@/lib/auth-client';
+import type { SessionUser } from '@/lib/auth-client';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 interface Interest {
@@ -21,6 +23,8 @@ const STAGES: Array<{ key: Interest['status']; label: string }> = [
 ];
 
 export default function PipelinePage() {
+  const { data: session } = useSession();
+  const isAdmin = (session?.user as SessionUser | undefined)?.role === 'ADMIN';
   const [items, setItems] = useState<Interest[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -29,10 +33,11 @@ export default function PipelinePage() {
   const [removeBusy, setRemoveBusy] = useState(false);
 
   const load = useCallback(() => {
-    api<{ interests: Interest[] }>('/interests?type=WANTS_DISCIPLESHIP').then((r) =>
-      setItems(r.interests),
-    );
-  }, []);
+    if (!isAdmin) return;
+    api<{ interests: Interest[] }>('/interests?type=WANTS_DISCIPLESHIP')
+      .then((r) => setItems(r.interests))
+      .catch(() => {});
+  }, [isAdmin]);
   useEffect(() => load(), [load]);
 
   async function move(id: string, status: Interest['status']) {
@@ -61,6 +66,9 @@ export default function PipelinePage() {
       setRemoveBusy(false);
     }
   }
+
+  // Reachable by direct URL; the API refuses non-admins either way.
+  if (session && !isAdmin) return <p className="p-5 text-muted">Admins Only.</p>;
 
   return (
     <div className="px-4 pt-5">

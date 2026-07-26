@@ -11,14 +11,18 @@ interface Item {
   href: string;
   label: string;
   icon: string;
+  /** Roles that get this link. Omitted = everyone. */
+  roles?: Array<SessionUser['role']>;
 }
 
 const MAIN: Item[] = [
   { href: '/home', label: 'Home', icon: 'home' },
   { href: '/directory', label: 'Directory', icon: 'directory' },
-  { href: '/groups', label: 'Groups', icon: 'groups' },
+  // Members aren't managing groups; leaders and admins are.
+  { href: '/groups', label: 'Groups', icon: 'groups', roles: ['ADMIN', 'LEADER'] },
   { href: '/calendar', label: 'Calendar', icon: 'calendar' },
-  { href: '/pipeline', label: 'Discipleship', icon: 'pipeline' },
+  // The discipleship board is an org-wide admin queue.
+  { href: '/pipeline', label: 'Discipleship', icon: 'pipeline', roles: ['ADMIN'] },
   // No Profile entry — the name at the foot of the drawer already goes there.
 ];
 
@@ -181,7 +185,7 @@ export function SideNav({
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="flex flex-col gap-0.5">
-            {MAIN.map((it) => {
+            {MAIN.filter((it) => !it.roles || (user?.role && it.roles.includes(user.role))).map((it) => {
               const active = pathname === it.href || pathname.startsWith(it.href + '/');
               return (
                 <li key={it.href}>
