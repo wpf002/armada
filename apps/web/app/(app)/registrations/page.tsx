@@ -110,53 +110,174 @@ export default function RegistrationsPage() {
         {selected.count} Submission{selected.count === 1 ? '' : 's'}
       </p>
 
-      <ul className="mt-4 flex flex-col gap-2.5">
-        {rows.map((r) => (
-          <li key={r.submissionId} className="card p-4">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="font-medium text-ink">{r.name || '(No Name)'}</span>
-              <span className="shrink-0 text-xs text-muted">
-                {r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : ''}
+      {rows.length === 0 ? (
+        <div className="mt-4 card px-5 py-6 text-sm text-muted">
+          {selected.isPublished ? (
+            <>
+              <span className="block font-medium text-ink">No Responses Retrieved</span>
+              <span className="mt-1 block">
+                This form fails to load in Fillout&apos;s own editor, so neither the app nor the
+                API can read its responses. Fillout support would need to repair it, or the form
+                can be rebuilt.
               </span>
-            </div>
-            {(r.email || r.church) && (
-              <p className="text-sm text-muted">{[r.email, r.church].filter(Boolean).join(' · ')}</p>
-            )}
-            {r.lookingFor && <p className="mt-1 text-sm text-ink-soft">{r.lookingFor}</p>}
+            </>
+          ) : (
+            <>
+              <span className="block font-medium text-ink">Draft Form</span>
+              <span className="mt-1 block">
+                This form hasn&apos;t been published in Fillout yet, so there&apos;s nothing to
+                pull in.
+              </span>
+            </>
+          )}
+        </div>
+      ) : (
+        <GroupedRegistrants rows={rows} />
+      )}
+    </div>
+  );
+}
 
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <StatusChip status={r.status} />
-              {r.personId && (
-                <Link href={`/people/${r.personId}`} className="btn-ghost h-9 min-h-0 px-4 text-sm">
-                  View Profile
-                </Link>
-              )}
-            </div>
-          </li>
-        ))}
-        {rows.length === 0 && (
-          <li className="card px-5 py-6 text-sm text-muted">
-            {selected.isPublished ? (
-              <>
-                <span className="block font-medium text-ink">No Responses Retrieved</span>
-                <span className="mt-1 block">
-                  This form fails to load in Fillout&apos;s own editor, so neither the app nor
-                  the API can read its responses. Fillout support would need to repair it, or
-                  the form can be rebuilt.
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="block font-medium text-ink">Draft Form</span>
-                <span className="mt-1 block">
-                  This form hasn&apos;t been published in Fillout yet, so there&apos;s nothing to
-                  pull in.
-                </span>
-              </>
+/**
+ * Registrants grouped newest-first: this year's months sit at the top level
+ * (the current month open, earlier months collapsed); every prior year is a
+ * header with its months collapsed under it. Submissions with no date (some
+ * CSV exports carry none) fall into an "Undated" group at the bottom.
+ */
+function GroupedRegistrants({ rows }: { rows: Registrant[] }) {
+  const now = new Date();
+  const curYear = now.getFullYear();
+  const curMonth = now.getMonth();
+
+  interface MonthBucket {
+    year: number;
+    month: number;
+    label: string;
+    rows: Registrant[];
+  }
+
+  const byKey = new Map<string, MonthBucket>();
+  const undated: Registrant[] = [];
+  for (const r of rows) {
+    if (!r.submittedAt) {
+      undated.push(r);
+      continue;
+    }
+    const d = new Date(r.submittedAt);
+    const year = d.getFullYear();
+    const month = d.getMonth();
+    const key = `${year}-${month}`;
+    let b = byKey.get(key);
+    if (!b) {
+      b = { year, month, label: d.toLocaleDateString(undefined, { month: 'long' }), rows: [] };
+      byKey.set(key, b);
+    }
+    b.rows.push(r);
+  }
+
+  // Within a month, list people alphabetically by first name. `name` is
+  // "First Last", so a plain locale compare sorts by first name already.
+  const byFirstName = (a: Registrant, z: Registrant) =>
+    (a.name || '~').localeCompare(z.name || '~', undefined, { sensitivity: 'base' });
+  for (const b of byKey.values()) b.rows.sort(byFirstName);
+  undated.sort(byFirstName);
+
+  const buckets = [...byKey.values()].sort((a, z) => z.year - a.year || z.month - a.month);
+  const years = [...new Set(buckets.map((b) => b.year))].sort((a, z) => z - a);
+
+  return (
+    <div className="mt-4 flex flex-col gap-3">
+      {years.map((year) => {
+        const months = buckets.filter((b) => b.year === year);
+        const isCurrentYear = year === curYear;
+        return (
+          <div key={year} className="flex flex-col gap-2">
+            {!isCurrentYear && (
+              <p className="mt-2 font-slab text-lg font-semibold text-ink">{year}</p>
             )}
-          </li>
+            {months.map((b) => (
+              <MonthGroup
+                key={`${b.year}-${b.month}`}
+                label={`${b.label}${isCurrentYear ? '' : ` ${b.year}`}`}
+                count={b.rows.length}
+                defaultOpen={isCurrentYear && b.month === curMonth}
+                rows={b.rows}
+              />
+            ))}
+          </div>
+        );
+      })}
+
+      {undated.length > 0 && (
+        <MonthGroup label="Undated" count={undated.length} defaultOpen={false} rows={undated} />
+      )}
+    </div>
+  );
+}
+
+function MonthGroup({
+  label,
+  count,
+  defaultOpen,
+  rows,
+}: {
+  label: string;
+  count: number;
+  defaultOpen: boolean;
+  rows: Registrant[];
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  // `defaultOpen` depends on the current date, which can differ between the
+  // server render and the browser; honor it once on the client so the current
+  // month is reliably expanded.
+  useEffect(() => {
+    if (defaultOpen) setOpen(true);
+  }, [defaultOpen]);
+  return (
+    <div className="overflow-hidden rounded-card border border-line bg-surface">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      >
+        <span className="font-medium text-ink">{label}</span>
+        <span className="flex items-center gap-2 text-sm text-muted">
+          {count}
+          <span className={`transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
+        </span>
+      </button>
+      {open && (
+        <div className="flex flex-col gap-2.5 border-t border-line p-3">
+          {rows.map((r) => (
+            <RegistrantCard key={r.submissionId} r={r} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RegistrantCard({ r }: { r: Registrant }) {
+  return (
+    <div className="rounded-lg border border-line bg-cream/40 p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-medium text-ink">{r.name || '(No Name)'}</span>
+        <span className="shrink-0 text-xs text-muted">
+          {r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : ''}
+        </span>
+      </div>
+      {(r.email || r.church) && (
+        <p className="text-sm text-muted">{[r.email, r.church].filter(Boolean).join(' · ')}</p>
+      )}
+      {r.lookingFor && <p className="mt-1 text-sm text-ink-soft">{r.lookingFor}</p>}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <StatusChip status={r.status} />
+        {r.personId && (
+          <Link href={`/people/${r.personId}`} className="btn-ghost h-9 min-h-0 px-4 text-sm">
+            View Profile
+          </Link>
         )}
-      </ul>
+      </div>
     </div>
   );
 }
