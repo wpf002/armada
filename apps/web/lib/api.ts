@@ -74,7 +74,7 @@ export interface Profile {
    *  Not the same as a mentor. */
   discipledBy?: Array<{ id: string; name: string; current: boolean }>;
   /** Their mentor, from an active MentorRelationship. */
-  mentoredBy?: { id: string; name: string } | null;
+  mentoredBy?: { id: string; name: string; edgeId: string } | null;
 }
 
 export interface GroupMemberNode {

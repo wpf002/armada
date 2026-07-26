@@ -2,11 +2,20 @@
 
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { api, personDisplayName, type Profile } from '@/lib/api';
+import {
+  api,
+  personDisplayName,
+  type DirectoryPerson,
+  type GroupDetail,
+  type GroupRef,
+  type Profile,
+} from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/lib/auth-client';
 import type { SessionUser } from '@/lib/auth-client';
 import { Avatar } from '@/components/Avatar';
+import { PersonPicker } from '@/components/PersonPicker';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 /**
  * Everything the Details panel shows — and, for an admin, everything it edits.
@@ -52,19 +61,22 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
     setDraft(seeded);
   }, [person]);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     api<{ person: Profile }>(`/people/${id}`)
       .then((r) => setPerson(r.person))
       .catch((e) => setError(String(e)));
   }, [id]);
+  useEffect(() => reload(), [reload]);
 
   if (error) return <p className="p-5 text-red-700">{error}</p>;
   if (!person) return <p className="p-5 text-muted">Loading…</p>;
 
   const isSelf = user?.personId === id;
+  const isAdmin = user?.role === 'ADMIN';
   // The server omits fields the viewer may not see, so key presence = permission.
   const hasContact = Boolean(person.phone || person.email || person.address);
-  const canEdit = user?.role === 'ADMIN' || isSelf;
+  const canEdit = isAdmin || isSelf;
+  const ledGroups = (person.groups ?? []).filter((g) => g.role !== 'DISCIPLE');
 
   const leads = (person.groups ?? []).some((g) => g.role !== 'DISCIPLE');
   const inGroup = (person.groups ?? []).some((g) => g.role === 'DISCIPLE');
@@ -132,18 +144,17 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
         </section>
       )}
 
-      {/* Mentored by = an explicit mentor relationship. A different thing. */}
-      {person.mentoredBy && (
-        <section className="mt-6">
-          <p className="eyebrow mb-2">Mentored By</p>
-          <Link
-            href={`/people/${person.mentoredBy.id}`}
-            className="card flex items-center justify-between px-4 py-3"
-          >
-            <span className="font-medium text-ink">{person.mentoredBy.name}</span>
-            <span className="text-muted">›</span>
-          </Link>
-        </section>
+      {/* Mentored by = an explicit mentor relationship. A different thing.
+          Admins can change or remove it here; the edit reflects everywhere the
+          mentor graph is read (Groups → Mentors, the hierarchy). */}
+      {(person.mentoredBy || isAdmin) && (
+        <MentorEditor
+          personId={id}
+          personName={personDisplayName(person)}
+          mentor={person.mentoredBy ?? null}
+          isAdmin={isAdmin}
+          onChanged={reload}
+        />
       )}
 
       {/* Groups */}
@@ -169,6 +180,13 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
           </div>
         </section>
       )}
+
+      {/* Who this leader is discipling — the disciples of each group they lead.
+          Editing here is editing group membership, so it shows up on the group
+          page and the hierarchy too. */}
+      {ledGroups.map((g) => (
+        <DisciplingEditor key={g.groupId} group={g} isAdmin={isAdmin} onChanged={reload} />
+      ))}
 
       {/* Details — read-only rows, or the same rows as inputs while editing.
           Editing happens in place here; there is no second panel below. */}
@@ -469,6 +487,276 @@ function NotesSection({ personId }: { personId: string }) {
         </ul>
       )}
     </div>
+  );
+}
+
+/**
+ * View, change, or clear who mentors this person. A "change" ends the current
+ * mentorship and opens a new one, so it's a single edge at a time. Because it
+ * writes the same MentorRelationship the rest of the app reads, the change
+ * shows up on Groups → Mentors and in the hierarchy immediately.
+ */
+function MentorEditor({
+  personId,
+  personName: name,
+  mentor,
+  isAdmin,
+  onChanged,
+}: {
+  personId: string;
+  personName: string;
+  mentor: { id: string; name: string; edgeId: string } | null;
+  isAdmin: boolean;
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [pick, setPick] = useState<DirectoryPerson | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function assign() {
+    if (!pick) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      if (mentor) await api(`/admin/mentorships/${mentor.edgeId}`, { method: 'DELETE' });
+      await api('/admin/mentorships', {
+        method: 'POST',
+        body: JSON.stringify({ mentorId: pick.id, menteeId: personId }),
+      });
+      setPick(null);
+      setEditing(false);
+      onChanged();
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function clear() {
+    if (!mentor) return;
+    setBusy(true);
+    try {
+      await api(`/admin/mentorships/${mentor.edgeId}`, { method: 'DELETE' });
+      setConfirmClear(false);
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mt-6">
+      <div className="mb-2 flex items-end justify-between">
+        <p className="eyebrow">Mentored By</p>
+        {isAdmin && !editing && (
+          <button onClick={() => setEditing(true)} className="text-sm text-deep">
+            {mentor ? 'Change' : 'Add'}
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="card flex flex-col gap-3 p-4">
+          <PersonPicker
+            value={pick}
+            onChange={setPick}
+            exclude={[personId]}
+            placeholder="Search People…"
+          />
+          {err && <p className="text-sm text-red-600">{err}</p>}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={assign}
+              disabled={!pick || busy}
+              className="btn-olive h-10 min-h-0 px-4 text-sm disabled:opacity-40"
+            >
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={() => {
+                setEditing(false);
+                setPick(null);
+                setErr(null);
+              }}
+              className="btn-ghost h-10 min-h-0 px-4 text-sm"
+            >
+              Cancel
+            </button>
+            {mentor && (
+              <button
+                onClick={() => setConfirmClear(true)}
+                className="ml-auto h-10 min-h-0 px-3 text-sm text-muted hover:text-red-600"
+              >
+                Remove Mentor
+              </button>
+            )}
+          </div>
+        </div>
+      ) : mentor ? (
+        <Link
+          href={`/people/${mentor.id}`}
+          className="card flex items-center justify-between px-4 py-3"
+        >
+          <span className="font-medium text-ink">{mentor.name}</span>
+          <span className="text-muted">›</span>
+        </Link>
+      ) : (
+        <p className="rounded-card border border-dashed border-line px-4 py-4 text-sm text-muted">
+          No Mentor Assigned.
+        </p>
+      )}
+
+      <ConfirmDialog
+        open={confirmClear}
+        title={`Remove ${name}'s mentor?`}
+        message={`${mentor?.name ?? ''} will no longer mentor ${name}. Nothing is deleted.`}
+        busy={busy}
+        onConfirm={clear}
+        onCancel={() => setConfirmClear(false)}
+      />
+    </section>
+  );
+}
+
+/**
+ * The disciples of one group this person leads, with add/remove. This is group
+ * membership, so every edit lands on the group page and the hierarchy as well.
+ */
+function DisciplingEditor({
+  group,
+  isAdmin,
+  onChanged,
+}: {
+  group: GroupRef;
+  isAdmin: boolean;
+  onChanged: () => void;
+}) {
+  const [detail, setDetail] = useState<GroupDetail | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [pick, setPick] = useState<DirectoryPerson | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState<{ personId: string; name: string } | null>(null);
+
+  const load = useCallback(() => {
+    api<{ group: GroupDetail }>(`/groups/${group.groupId}`)
+      .then((r) => setDetail(r.group))
+      .catch(() => {});
+  }, [group.groupId]);
+  useEffect(() => load(), [load]);
+
+  async function add() {
+    if (!pick) return;
+    setBusy(true);
+    try {
+      await api(`/groups/${group.groupId}/members`, {
+        method: 'POST',
+        body: JSON.stringify({ personId: pick.id, role: 'DISCIPLE' }),
+      });
+      setPick(null);
+      setAdding(false);
+      load();
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!removing) return;
+    setBusy(true);
+    try {
+      await api(`/groups/${group.groupId}/members/${removing.personId}`, { method: 'DELETE' });
+      setRemoving(null);
+      load();
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const disciples = detail?.disciples ?? [];
+  const excludeIds = [
+    ...(detail?.leaders.map((l) => l.personId) ?? []),
+    ...disciples.map((d) => d.personId),
+  ];
+
+  return (
+    <section className="mt-6">
+      <div className="mb-2 flex items-end justify-between">
+        <p className="eyebrow">Discipling · {group.displayName}</p>
+        {isAdmin && !adding && (
+          <button onClick={() => setAdding(true)} className="text-sm text-deep">
+            Add
+          </button>
+        )}
+      </div>
+
+      {adding && isAdmin && (
+        <div className="card mb-2 flex flex-col gap-3 p-4">
+          <PersonPicker
+            value={pick}
+            onChange={setPick}
+            exclude={excludeIds}
+            placeholder="Search People…"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={add}
+              disabled={!pick || busy}
+              className="btn-olive h-10 min-h-0 px-4 text-sm disabled:opacity-40"
+            >
+              {busy ? 'Saving…' : 'Add Disciple'}
+            </button>
+            <button
+              onClick={() => {
+                setAdding(false);
+                setPick(null);
+              }}
+              className="btn-ghost h-10 min-h-0 px-4 text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {disciples.length === 0 ? (
+        <p className="rounded-card border border-dashed border-line px-4 py-4 text-sm text-muted">
+          No Disciples Yet.
+        </p>
+      ) : (
+        <div className="card divide-y divide-line">
+          {disciples.map((d) => (
+            <div key={d.personId} className="flex items-center justify-between px-4 py-2.5">
+              <Link href={`/people/${d.personId}`} className="min-w-0 truncate text-ink-soft">
+                {d.name}
+              </Link>
+              {isAdmin && (
+                <button
+                  onClick={() => setRemoving({ personId: d.personId, name: d.name })}
+                  aria-label={`Remove ${d.name}`}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-base leading-none text-muted hover:bg-sand hover:text-red-600"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={removing !== null}
+        title={`Remove ${removing?.name ?? ''}?`}
+        message={`${removing?.name} will be removed from ${group.displayName}. Their membership ends; nothing is deleted.`}
+        busy={busy}
+        onConfirm={remove}
+        onCancel={() => setRemoving(null)}
+      />
+    </section>
   );
 }
 

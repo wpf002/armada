@@ -225,11 +225,13 @@ export function registerPeopleRoutes(app: FastifyInstance) {
     const mentorEdge = await prisma.mentorRelationship.findFirst({
       where: { menteeId: id, endedAt: null },
       select: {
+        id: true,
         mentor: { select: { id: true, firstName: true, lastName: true, preferredName: true } },
       },
     });
+    // edgeId lets the profile replace this mentorship in place.
     const mentoredBy = mentorEdge
-      ? { id: mentorEdge.mentor.id, name: personName(mentorEdge.mentor) }
+      ? { id: mentorEdge.mentor.id, name: personName(mentorEdge.mentor), edgeId: mentorEdge.id }
       : null;
 
     return {

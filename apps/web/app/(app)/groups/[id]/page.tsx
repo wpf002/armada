@@ -248,8 +248,12 @@ function MemberRow({
         {sub && <span className="text-xs text-muted">{sub}</span>}
       </Link>
       {onRemove && (
-        <button onClick={onRemove} className="text-sm text-muted hover:text-red-600">
-          remove
+        <button
+          onClick={onRemove}
+          aria-label={`Remove ${name}`}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-base leading-none text-muted hover:bg-sand hover:text-red-600"
+        >
+          ×
         </button>
       )}
     </div>
