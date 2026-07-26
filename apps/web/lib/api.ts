@@ -95,6 +95,9 @@ export interface GroupDetail {
   leaders: GroupMemberNode[];
   disciples: GroupMemberNode[];
   openCapacity: boolean;
+  /** Server's verdict on whether the viewer may edit this group. Only sent by
+   *  the single-group endpoint. */
+  canManage?: boolean;
 }
 
 export interface MentorNode {

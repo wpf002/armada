@@ -95,7 +95,10 @@ export function registerGroupRoutes(app: FastifyInstance) {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const detail = await groupWithMembers(id);
     if (!detail) return reply.status(404).send({ error: 'not found' });
-    return { group: detail };
+    // Who may edit this group is decided here, by the same `can()` the write
+    // routes use — so the UI can't drift from what the API will actually allow.
+    const viewer = await buildViewer(request.authedUser!);
+    return { group: { ...detail, canManage: can(viewer, 'group.manageMembership', { groupId: id }) } };
   });
 
   // --- Create (admin) ---

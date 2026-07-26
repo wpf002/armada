@@ -36,9 +36,9 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
   if (error) return <p className="p-5 text-red-600">{error}</p>;
   if (!group) return <p className="p-5 text-muted">Loading…</p>;
 
-  // Admins always; a leader of THIS group may manage its membership.
-  const canManage =
-    user?.role === 'ADMIN' || group.leaders.some((l) => l.personId === user?.personId);
+  // The server decides this (admin, a leader of this group, or the mentor of
+  // one of its leaders) so the UI can't disagree with what the API permits.
+  const canManage = group.canManage ?? false;
 
   async function confirmRemoval() {
     if (!pendingRemoval) return;
