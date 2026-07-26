@@ -27,6 +27,10 @@ function nameOf(p: { firstName: string; lastName: string; preferredName: string 
   return `${p.preferredName?.trim() || p.firstName} ${p.lastName}`.trim();
 }
 
+/** Alphabetical by display name, case- and accent-insensitive. */
+const byName = (a: { name: string }, b: { name: string }) =>
+  a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+
 /** Assemble a group's active leaders + disciples with derived display name. */
 async function groupWithMembers(groupId: string) {
   const group = await prisma.discipleshipGroup.findUnique({ where: { id: groupId } });
@@ -52,6 +56,12 @@ async function groupWithMembers(groupId: string) {
     if (m.role === 'DISCIPLE') disciples.push(node);
     else leaders.push(node);
   }
+  // Sorted here so every consumer — list, detail, accordion, fleet diagram —
+  // shows the same order. It also makes the derived name deterministic: the
+  // same two co-leaders can no longer yield "A & B" on one group and "B & A"
+  // on another purely from row order.
+  leaders.sort(byName);
+  disciples.sort(byName);
   return {
     id: group.id,
     name: group.name,
@@ -79,7 +89,6 @@ export function registerGroupRoutes(app: FastifyInstance) {
 
     const groups = await prisma.discipleshipGroup.findMany({
       where,
-      orderBy: { createdAt: 'asc' },
       select: { id: true },
     });
     const detailed = [];
@@ -87,6 +96,11 @@ export function registerGroupRoutes(app: FastifyInstance) {
       const d = await groupWithMembers(g.id);
       if (d) detailed.push(d);
     }
+    // By derived name, not createdAt — a group made today belongs in the
+    // alphabet, not at the bottom of the list.
+    detailed.sort((a, b) =>
+      a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }),
+    );
     return { groups: detailed };
   });
 
@@ -226,7 +240,6 @@ export function registerGroupRoutes(app: FastifyInstance) {
 
     const groupRows = await prisma.discipleshipGroup.findMany({
       where: groupWhere,
-      orderBy: { createdAt: 'asc' },
       select: { id: true },
     });
     const groups = [];
@@ -234,6 +247,9 @@ export function registerGroupRoutes(app: FastifyInstance) {
       const d = await groupWithMembers(g.id);
       if (d) groups.push(d);
     }
+    groups.sort((a, b) =>
+      a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }),
+    );
 
     // Mentor ring (full graph only): mentor -> the leaders/mentees they mentor.
     let mentors: Array<{ personId: string; name: string; photoUrl: string | null; menteeIds: string[] }> = [];
@@ -255,7 +271,7 @@ export function registerGroupRoutes(app: FastifyInstance) {
         }
         byMentor.get(key)!.menteeIds.push(e.menteeId);
       }
-      mentors = [...byMentor.entries()].map(([personId, v]) => ({ personId, ...v }));
+      mentors = [...byMentor.entries()].map(([personId, v]) => ({ personId, ...v })).sort(byName);
     }
 
     return { fullGraph, groups, mentors };
