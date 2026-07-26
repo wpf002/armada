@@ -167,8 +167,8 @@ export default function ProfilePage() {
 
       {tab === 'work' && (
         <div className="mt-5 flex flex-col gap-6">
-          {/* Action needed */}
-          {hasWork ? (
+          {/* Action needed — omitted entirely when there's nothing to act on. */}
+          {hasWork && (
             <section>
               <p className="eyebrow mb-2">Action Needed</p>
               <div className="card divide-y divide-line">
@@ -206,8 +206,6 @@ export default function ProfilePage() {
 
               </div>
             </section>
-          ) : (
-            <p className="card px-4 py-5 text-sm text-muted">Nothing Needs You Right Now.</p>
           )}
 
           {/* Your group — leaders only */}
