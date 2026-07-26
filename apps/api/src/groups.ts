@@ -27,6 +27,29 @@ function nameOf(p: { firstName: string; lastName: string; preferredName: string 
   return `${p.preferredName?.trim() || p.firstName} ${p.lastName}`.trim();
 }
 
+/**
+ * Does this person function as a leader? Either they lead a group right now, or
+ * they hold an elevated role (LEADER / ADMIN) — admins are leaders with extra
+ * privileges, and shouldn't be excluded just because they lead no group today.
+ */
+async function isLeaderish(personId: string): Promise<boolean> {
+  // Admin-only accounts aren't in the discipleship graph at all, so an elevated
+  // role doesn't make them mentorable.
+  const person = await prisma.person.findUnique({
+    where: { id: personId },
+    select: { isParticipant: true },
+  });
+  if (!person?.isParticipant) return false;
+
+  const leads = await prisma.groupMembership.findFirst({
+    where: { personId, leftAt: null, role: { in: ['LEADER', 'CO_LEADER'] } },
+    select: { id: true },
+  });
+  if (leads) return true;
+  const user = await prisma.user.findUnique({ where: { personId }, select: { role: true } });
+  return user?.role === 'LEADER' || user?.role === 'ADMIN';
+}
+
 /** Alphabetical by display name, case- and accent-insensitive. */
 const byName = (a: { name: string }, b: { name: string }) =>
   a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
@@ -200,14 +223,12 @@ export function registerGroupRoutes(app: FastifyInstance) {
       .object({ mentorId: z.string().uuid(), menteeId: z.string().uuid() })
       .parse(request.body);
     if (mentorId === menteeId) return reply.status(400).send({ error: 'a person cannot mentor themselves' });
-    // Mentorship in Armada is leader care: you mentor someone who leads a
-    // group. Enforced here, not just in the picker, so the rule holds for any
-    // caller.
-    const menteeLeads = await prisma.groupMembership.findFirst({
-      where: { personId: menteeId, leftAt: null, role: { in: ['LEADER', 'CO_LEADER'] } },
-      select: { id: true },
-    });
-    if (!menteeLeads) {
+    // Mentorship in Armada is leader care, so the mentee has to be a leader —
+    // enforced here, not just in the picker, so the rule holds for any caller.
+    // "Leader" means either leading a group today OR holding an elevated role:
+    // an admin is a leader with extra privileges, and may not currently lead a
+    // group, but still needs someone shepherding them.
+    if (!(await isLeaderish(menteeId))) {
       return reply.status(400).send({ error: 'Only a leader can be mentored' });
     }
     const existing = await prisma.mentorRelationship.findFirst({

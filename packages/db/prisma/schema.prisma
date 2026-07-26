@@ -32,6 +32,12 @@ model Person {
   bio               String?
   status            PersonStatus   @default(PROSPECT)
 
+  // False for accounts that exist only to administer Armada (the seed admin,
+  // preview logins, an outside admin). They are real User logins but not part
+  // of the discipleship graph, so they stay out of the directory, the member
+  // count, and anything that treats a person as a participant.
+  isParticipant     Boolean        @default(true)
+
   // registration intake fields
   attendedBefore Boolean?
   heardAboutUs   String?

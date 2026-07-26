@@ -23,6 +23,10 @@ interface Mentor {
   name: string;
   mentees: Array<{ id: string; name: string; edgeId: string }>;
 }
+interface AppUser {
+  personId: string;
+  role: 'ADMIN' | 'LEADER' | 'MEMBER';
+}
 
 /** All three admin "add" buttons share this, so they always look the same. */
 const ADD_BTN = 'mb-3 w-full rounded-lg bg-deep py-2.5 text-sm font-medium text-cream';
@@ -51,6 +55,7 @@ export default function GroupsPage() {
   const [addingLeader, setAddingLeader] = useState(false);
   const [addingMentor, setAddingMentor] = useState(false);
   const [creatingGroup, setCreatingGroup] = useState(false);
+  const [users, setUsers] = useState<AppUser[]>([]);
 
   const load = useCallback(() => {
     api<Hierarchy>('/hierarchy')
@@ -61,6 +66,11 @@ export default function GroupsPage() {
       .catch(() => {});
     api<{ mentors: Mentor[] }>('/mentors')
       .then((r) => setMentors(r.mentors))
+      .catch(() => {});
+    // Admin-only; used to widen "who can be mentored" beyond current group
+    // leaders. Fails harmlessly for everyone else.
+    api<{ users: AppUser[] }>('/admin/users')
+      .then((r) => setUsers(r.users))
       .catch(() => {});
   }, []);
 
@@ -76,8 +86,15 @@ export default function GroupsPage() {
     router.replace(`/groups?view=${next}`, { scroll: false });
   }
 
-  // Only leaders can be mentored, so the mentee pickers offer only leaders.
-  const leaderIds = leaders.map((l) => l.id);
+  // Only leaders can be mentored. "Leader" means leading a group today OR
+  // holding an elevated role — an admin is a leader with extra privileges and
+  // still needs a mentor, even with no group of their own. Mirrors the API.
+  const leaderIds = [
+    ...new Set([
+      ...leaders.map((l) => l.id),
+      ...users.filter((u) => u.role !== 'MEMBER').map((u) => u.personId),
+    ]),
+  ];
 
   const heading =
     view === 'groups'

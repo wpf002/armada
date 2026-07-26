@@ -30,6 +30,14 @@ const ACTIVE_LEADER: { in: GroupRole[] } = { in: ['LEADER', 'CO_LEADER'] };
 /** Preview/demo logins are hidden from the directory. */
 export const PREVIEW_EMAIL_SUFFIX = '@preview.armada';
 
+/**
+ * The directory is Armada's people, not its logins. Accounts that exist only to
+ * administer the app — the seed admin, preview logins, an outside admin — carry
+ * `isParticipant: false` and are filtered out here, which also keeps them out
+ * of the "Members" count (it is the length of this list).
+ */
+export const PARTICIPANTS_ONLY = { isParticipant: true } as const;
+
 function personName(p: {
   firstName: string;
   lastName: string;
@@ -131,8 +139,7 @@ export function registerPeopleRoutes(app: FastifyInstance) {
       where: {
         mergedIntoId: null,
         status: query.status ?? { not: 'REMOVED' },
-        // Preview accounts exist to demo roles; keep them out of the directory.
-        NOT: { email: { endsWith: PREVIEW_EMAIL_SUFFIX } },
+        ...PARTICIPANTS_ONLY,
         ...(query.groupId
           ? { memberships: { some: { groupId: query.groupId, leftAt: null } } }
           : {}),
