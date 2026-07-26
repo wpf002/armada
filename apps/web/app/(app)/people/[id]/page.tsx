@@ -13,6 +13,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/lib/auth-client';
 import type { SessionUser } from '@/lib/auth-client';
+import { groupPossessive } from '@armada/shared';
 import { Avatar } from '@/components/Avatar';
 import { PersonPicker } from '@/components/PersonPicker';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -750,8 +751,7 @@ function DisciplingEditor({
 
       <ConfirmDialog
         open={removing !== null}
-        title={`Remove ${removing?.name ?? ''}?`}
-        message={`${removing?.name} will be removed from ${group.displayName}. Their membership ends; nothing is deleted.`}
+        title={`Do you want to remove ${removing?.name ?? ''} from ${groupPossessive(group.displayName)}?`}
         busy={busy}
         onConfirm={remove}
         onCancel={() => setRemoving(null)}

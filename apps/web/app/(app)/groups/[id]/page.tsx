@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, personDisplayName, type DirectoryPerson, type GroupDetail } from '@/lib/api';
+import { groupPossessive } from '@armada/shared';
 import { useSession } from '@/lib/auth-client';
 import type { SessionUser } from '@/lib/auth-client';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -131,12 +132,7 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
 
       <ConfirmDialog
         open={pendingRemoval !== null}
-        title={`Remove ${pendingRemoval?.name ?? ''}?`}
-        message={
-          pendingRemoval?.role === 'leader'
-            ? `${pendingRemoval?.name} will no longer lead ${group.displayName}. Their membership ends; nothing is deleted.`
-            : `${pendingRemoval?.name} will be removed from ${group.displayName}. Their membership ends; nothing is deleted.`
-        }
+        title={`Do you want to remove ${pendingRemoval?.name ?? ''} from ${groupPossessive(group.displayName)}?`}
         busy={removing}
         onConfirm={confirmRemoval}
         onCancel={() => setPendingRemoval(null)}

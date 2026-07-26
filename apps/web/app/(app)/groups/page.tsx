@@ -387,7 +387,7 @@ function MentorCard({
         open={confirming !== null}
         title={
           confirming?.kind === 'one'
-            ? `Stop mentoring ${confirming.name}?`
+            ? `Do you want to remove ${confirming.name} from ${mentor.name}'s group?`
             : `Remove ${mentor.name} as a mentor?`
         }
         busy={busy}
