@@ -12,8 +12,8 @@ describe('deriveGroupDisplayName', () => {
     expect(deriveGroupDisplayName([])).toBe('Unassigned Group');
   });
 
-  it('makes a single leader possessive', () => {
-    expect(deriveGroupDisplayName([p('Kyle', 'Sullivan')])).toBe("Kyle Sullivan's Group");
+  it('names a single-leader group after that leader, with no suffix', () => {
+    expect(deriveGroupDisplayName([p('Kyle', 'Sullivan')])).toBe('Kyle Sullivan');
   });
 
   it('joins two co-leaders (invariant #9)', () => {
@@ -29,13 +29,17 @@ describe('deriveGroupDisplayName', () => {
   });
 
   it('prefers a preferred name', () => {
-    expect(deriveGroupDisplayName([p('Robert', 'White', 'Bob')])).toBe("Bob White's Group");
+    expect(deriveGroupDisplayName([p('Robert', 'White', 'Bob')])).toBe('Bob White');
   });
 });
 
 describe('groupPossessive', () => {
-  it('leaves an already-possessive single-leader name alone', () => {
-    // Appending here would read "Kyle Sullivan's Group's Group".
+  it('adds the suffix to a single-leader name', () => {
+    expect(groupPossessive('Kyle Sullivan')).toBe("Kyle Sullivan's Group");
+  });
+
+  it('never doubles the word on a name that already ends in Group', () => {
+    // Guards legacy/stored labels: "…'s Group's Group" would be nonsense.
     expect(groupPossessive("Kyle Sullivan's Group")).toBe("Kyle Sullivan's Group");
   });
 
