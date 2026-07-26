@@ -187,6 +187,28 @@ async function attachSideEffects(personId: string, parsed: ParsedRegistrant) {
   }
 }
 
+/**
+ * A brand-new person who registered via the Armada Registration form is, by
+ * definition, someone who wants to be discipled — so open that interest, which
+ * is exactly what the "Wants To Be Discipled" board reads. One open interest
+ * per person; already-known people (they matched an existing record) are left
+ * alone, and other forms (Rangers signup, questionnaire) don't trigger this.
+ */
+async function ensureDiscipleshipInterest(personId: string) {
+  const exists = await prisma.interest.findFirst({
+    where: {
+      personId,
+      type: 'WANTS_DISCIPLESHIP',
+      status: { in: ['OPEN', 'IN_PROGRESS', 'PLACED'] },
+    },
+  });
+  if (!exists) {
+    await prisma.interest.create({
+      data: { personId, type: 'WANTS_DISCIPLESHIP', status: 'OPEN' },
+    });
+  }
+}
+
 /** A registrant needs a reach-out. One open FollowUp per subject. */
 async function ensureFollowUp(personId: string) {
   const exists = await prisma.followUp.findFirst({
@@ -261,6 +283,10 @@ export async function ingestSubmission(
   if (personId) {
     await attachSideEffects(personId, parsed);
     await ensureFollowUp(personId);
+    // A new name off the Armada Registration lands on the discipleship board.
+    if (intakeStatus === 'CREATED_NEW' && formId === FILLOUT_FORM_ID) {
+      await ensureDiscipleshipInterest(personId);
+    }
   }
 
   await prisma.auditLog.create({
@@ -302,6 +328,7 @@ export async function createFromSubmission(submissionId: string, reviewerId: str
   const personId = await createPersonFromSubmission(parsed);
   await attachSideEffects(personId, parsed);
   await ensureFollowUp(personId);
+  if (sub.filloutFormId === FILLOUT_FORM_ID) await ensureDiscipleshipInterest(personId);
   await prisma.formSubmission.update({
     where: { id: submissionId },
     data: { personId, intakeStatus: 'CREATED_NEW', reviewedById: reviewerId, reviewedAt: new Date() },

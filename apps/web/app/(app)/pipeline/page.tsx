@@ -47,7 +47,7 @@ export default function PipelinePage() {
       <p className="eyebrow">Discipleship</p>
       <h1 className="display text-[26px]">Wants To Be Discipled</h1>
       <p className="mt-1 text-sm text-muted">
-        Drag A Name Between Stages. You Can Always Drag It Back.
+        Drag a name between stages.
       </p>
 
       <div className="mt-5 flex flex-col gap-6">
