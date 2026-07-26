@@ -1,12 +1,19 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * A single, on-theme confirmation modal for destructive actions (removing a
  * member, a leader, a mentorship). Deliberately quiet: cream card, brand lines,
  * one warm-red confirm — no full-bleed red, no alarm iconography. Escape or a
  * backdrop tap cancels, so it's easy to back out of.
+ *
+ * Rendered through a portal to <body>. The app's <main> carries an
+ * `animate-fade-up` transform, and a transformed ancestor becomes the
+ * containing block for `position: fixed` — so without the portal this pinned
+ * itself to the bottom of the *page* rather than the viewport, landing far
+ * off-screen when fired from a row low in a long list.
  */
 export function ConfirmDialog({
   open,
@@ -25,6 +32,10 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  // Portals need the DOM, so only render after mount (SSR-safe).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -34,13 +45,16 @@ export function ConfirmDialog({
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onCancel]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-4 backdrop-blur-sm sm:items-center"
+      // Anchored near the top: the trigger is often a row far down a long list,
+      // and a bottom sheet lands under the thumb, off-screen, or behind the
+      // floating dev badge. Top keeps it in view wherever it was fired from.
+      className="fixed inset-0 z-50 flex items-start justify-center bg-ink/40 p-4 pt-20 backdrop-blur-sm"
       onClick={onCancel}
     >
       <div
@@ -66,6 +80,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

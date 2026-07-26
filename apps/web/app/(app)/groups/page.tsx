@@ -390,13 +390,6 @@ function MentorCard({
             ? `Stop mentoring ${confirming.name}?`
             : `Remove ${mentor.name} as a mentor?`
         }
-        message={
-          confirming?.kind === 'one'
-            ? `${mentor.name} will no longer mentor ${confirming.name}. Nobody is deleted.`
-            : `This ends ${mentor.mentees.length} mentorship${
-                mentor.mentees.length === 1 ? '' : 's'
-              }. Nobody is deleted.`
-        }
         busy={busy}
         onConfirm={confirmRemoval}
         onCancel={() => setConfirming(null)}
