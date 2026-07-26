@@ -30,7 +30,10 @@ export default function HomePage() {
       })
       .catch(() => {});
     Promise.all([
-      api<{ people: unknown[] }>('/people'),
+      // Members are ACTIVE people. The directory also carries PROSPECTs —
+      // registration-form sign-ups who aren't in a group and haven't joined —
+      // and counting those as members overstates the org.
+      api<{ people: unknown[] }>('/people?status=ACTIVE'),
       api<{ groups: unknown[] }>('/groups'),
     ])
       .then(([p, g]) => setCounts({ people: p.people.length, groups: g.groups.length }))
