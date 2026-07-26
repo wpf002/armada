@@ -186,7 +186,15 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
           Editing here is editing group membership, so it shows up on the group
           page and the hierarchy too. */}
       {ledGroups.map((g) => (
-        <DisciplingEditor key={g.groupId} group={g} isAdmin={isAdmin} onChanged={reload} />
+        <DisciplingEditor
+          key={g.groupId}
+          group={g}
+          isAdmin={isAdmin}
+          // Only worth naming the group when they lead more than one; with a
+          // single group the heading would just repeat what's above it.
+          showGroupName={ledGroups.length > 1}
+          onChanged={reload}
+        />
       ))}
 
       {/* Details — read-only rows, or the same rows as inputs while editing.
@@ -629,10 +637,12 @@ function MentorEditor({
 function DisciplingEditor({
   group,
   isAdmin,
+  showGroupName,
   onChanged,
 }: {
   group: GroupRef;
   isAdmin: boolean;
+  showGroupName: boolean;
   onChanged: () => void;
 }) {
   const [detail, setDetail] = useState<GroupDetail | null>(null);
@@ -687,7 +697,7 @@ function DisciplingEditor({
   return (
     <section className="mt-6">
       <div className="mb-2 flex items-end justify-between">
-        <p className="eyebrow">Discipling · {group.displayName}</p>
+        <p className="eyebrow">{showGroupName ? `Discipling · ${group.displayName}` : 'Discipling'}</p>
         {isAdmin && !adding && (
           <button onClick={() => setAdding(true)} className="text-sm text-deep">
             Add

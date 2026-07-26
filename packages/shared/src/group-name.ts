@@ -38,11 +38,14 @@ export function deriveGroupDisplayName(activeLeaders: LeaderName[]): string {
 
 /**
  * A derived name phrased as a group, for sentences like "remove X from ___".
- * Single-leader names already read "Kyle Sullivan's Group", so only the
- * co-led forms need the possessive — appending blindly would yield
- * "Kyle Sullivan's Group's group".
+ *
+ * Single-leader names already end in "Group" ("Kyle Sullivan's Group"), so only
+ * the co-led forms need the suffix — appending blindly would yield
+ * "Kyle Sullivan's Group's group". Capital "Group" either way, so the two
+ * shapes read alike in the same sentence.
  */
 export function groupPossessive(displayName: string): string {
   const name = displayName.trim();
-  return /group$/i.test(name) ? name : `${name}'s group`;
+  if (!name) return 'the group';
+  return /group$/i.test(name) ? name : `${name}'s Group`;
 }
