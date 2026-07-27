@@ -10,6 +10,29 @@ import { prisma } from '@armada/db';
  * its id, so the User row is never orphaned. `role` defaults to MEMBER at the DB
  * level; admins elevate roles later (never self-serve at sign-up → `input: false`).
  */
+/**
+ * Is the browser app on a different site than this API? On Railway the two get
+ * separate *.up.railway.app subdomains, and because up.railway.app is a public
+ * suffix those count as cross-SITE, not merely cross-origin. A SameSite=Lax
+ * cookie is then never sent with the web app's fetches, so every sign-in
+ * appears to succeed and immediately bounces back to /login.
+ */
+function crossSiteCookies(): boolean {
+  const api = process.env.BETTER_AUTH_URL;
+  const web = (process.env.WEB_ORIGIN ?? '').split(',')[0]?.trim();
+  if (!api || !web) return false;
+  try {
+    const a = new URL(api);
+    const w = new URL(web);
+    // Only relax when both are HTTPS — SameSite=None requires Secure.
+    return a.host !== w.host && a.protocol === 'https:' && w.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+const CROSS_SITE = crossSiteCookies();
+
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
   secret: process.env.BETTER_AUTH_SECRET ?? 'dev-secret-change-me',
@@ -24,9 +47,13 @@ export const auth = betterAuth({
     cookieCache: { enabled: false },
   },
   advanced: {
+    useSecureCookies: CROSS_SITE || undefined,
     defaultCookieAttributes: {
       // No maxAge/expires => a session cookie.
       maxAge: undefined,
+      // Same-site by default (localhost dev); only widened when the web app
+      // genuinely sits on another site, which requires Secure.
+      ...(CROSS_SITE ? { sameSite: 'none' as const, secure: true } : {}),
     },
   },
   emailAndPassword: {
