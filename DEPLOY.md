@@ -70,7 +70,20 @@ Railway's managed Postgres backups plus, optionally, a scheduled `scripts/backup
 - **Listen on `PORT`.** Railway injects it and routes to it. `API_PORT=${{PORT}}` is *not*
   a valid reference — it arrives empty, coerces to 0, and Fastify binds a random port the
   proxy can't reach (every request 502s). The API reads `PORT` first, `API_PORT` locally.
-- **Cross-site cookies.** `web-*.up.railway.app` and `api-*.up.railway.app` are different
+- **Serve the API through the web app (`/backend`).** Two `*.up.railway.app` subdomains are
+  different *sites*, so the session cookie is third-party — Safari blocks those by default
+  and Chrome does in Incognito. Sign-in returns 200 and the app bounces back to `/login`,
+  and it only "works" in permissive browsers. `API_PROXY_TARGET` turns on a Next rewrite so
+  the browser only ever talks to one origin. Keep `BETTER_AUTH_URL` as the API's own origin:
+  Better Auth derives its base path from it, and the proxied request still arrives at
+  `/api/auth/*`.
+- **The auth client needs the full `/api/auth` path.** Better Auth appends endpoints
+  directly to a `baseURL` that already has a path, so `.../backend` alone yields
+  `/backend/sign-in/email` (404). `auth-client.ts` spells the path out.
+- **Env vars that get baked into a build belong in `turbo.json`'s `env`.** Nixpacks caches
+  `node_modules/.cache`, so turbo will happily replay a build made before the variable
+  changed — the deploy succeeds while shipping the old config.
+- **Legacy: cross-site cookies.** `web-*.up.railway.app` and `api-*.up.railway.app` are different
   *sites* — `up.railway.app` is on the Public Suffix List. A `SameSite=Lax` session cookie
   is never sent, so sign-in succeeds and bounces to `/login`. The API sets
   `SameSite=None; Secure` when `BETTER_AUTH_URL` and `WEB_ORIGIN` are different HTTPS hosts.
