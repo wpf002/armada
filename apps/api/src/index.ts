@@ -17,12 +17,24 @@ import { registerEventRoutes } from './events';
 import { registerAdminRoutes } from './admin';
 
 const envSchema = z.object({
+  // Hosts like Railway inject PORT and route to it; honour that first and keep
+  // API_PORT for local use. Empty strings coerce to 0 (a random port the
+  // platform can't reach), so treat blank as unset.
+  PORT: z.coerce.number().optional(),
   API_PORT: z.coerce.number().default(4000),
   API_HOST: z.string().default('0.0.0.0'),
   WEB_ORIGIN: z.string().default('http://localhost:3000'),
 });
 
-const env = envSchema.parse(process.env);
+const blank = (v: string | undefined) => v === undefined || v.trim() === '';
+const env = {
+  ...envSchema.parse({
+    ...process.env,
+    PORT: blank(process.env.PORT) ? undefined : process.env.PORT,
+    API_PORT: blank(process.env.API_PORT) ? undefined : process.env.API_PORT,
+  }),
+};
+const listenPort = env.PORT ?? env.API_PORT;
 
 export async function buildServer() {
   const app = Fastify({ logger: true });
@@ -133,7 +145,7 @@ export async function buildServer() {
 async function start() {
   const app = await buildServer();
   try {
-    await app.listen({ port: env.API_PORT, host: env.API_HOST });
+    await app.listen({ port: listenPort, host: env.API_HOST });
   } catch (err) {
     app.log.error(err);
     process.exit(1);
