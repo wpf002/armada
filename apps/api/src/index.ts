@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import Fastify, { type FastifyError } from 'fastify';
 import cors from '@fastify/cors';
@@ -34,6 +35,10 @@ export async function buildServer() {
   await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });
 
   const uploadDir = process.env.UPLOAD_DIR ?? join(process.cwd(), 'uploads');
+  // @fastify/static refuses to register if its root is missing, which aborts
+  // boot on a fresh container (the dir was only created lazily on first photo
+  // upload). Create it up front so a clean deploy can start.
+  await mkdir(uploadDir, { recursive: true });
   await app.register(fastifyStatic, { root: uploadDir, prefix: '/uploads/' });
 
   // --- Better Auth handler: mount all /api/auth/* routes ------------------
