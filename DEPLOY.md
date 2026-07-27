@@ -75,6 +75,11 @@ Railway's managed Postgres backups plus, optionally, a scheduled `scripts/backup
   is never sent, so sign-in succeeds and bounces to `/login`. The API sets
   `SameSite=None; Secure` when `BETTER_AUTH_URL` and `WEB_ORIGIN` are different HTTPS hosts.
   Custom domains sharing one registrable domain avoid this entirely.
+- **Renaming a service domain breaks auth.** `WEB_ORIGIN` on the api feeds both CORS and
+  Better Auth's `trustedOrigins`; if the web domain changes and this doesn't, sign-in
+  returns `403 INVALID_ORIGIN`. Update it and redeploy the api.
+- **Photo uploads need a volume.** Without one, `UPLOAD_DIR` is container-local and every
+  photo disappears on redeploy: `railway volume add --mount-path /app/uploads` on the api.
 - **`UPLOAD_DIR` must exist at boot.** `@fastify/static` refuses to register otherwise and
   the process dies before listening. The API now creates it on startup.
 
