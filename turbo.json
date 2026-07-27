@@ -5,6 +5,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "//": "These are baked into the build, so they must be part of the cache key — otherwise turbo replays a stale bundle after an env change and the deploy silently ships the old config.",
+      "env": ["NEXT_PUBLIC_API_URL", "API_PROXY_TARGET"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "typecheck": {
