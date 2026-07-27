@@ -251,6 +251,9 @@ export default function GroupsPage() {
                   type="checkbox"
                   checked={showMentorRing}
                   onChange={(e) => setShowMentorRing(e.target.checked)}
+                  // Olive matches the mentor ring this toggles, instead of the
+                  // browser's default blue.
+                  className="h-4 w-4 accent-olive"
                 />
                 Mentors
               </label>
