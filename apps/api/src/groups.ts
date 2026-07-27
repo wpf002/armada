@@ -273,25 +273,50 @@ export function registerGroupRoutes(app: FastifyInstance) {
     );
 
     // Mentor ring (full graph only): mentor -> the leaders/mentees they mentor.
-    let mentors: Array<{ personId: string; name: string; photoUrl: string | null; menteeIds: string[] }> = [];
+    let mentors: Array<{
+      personId: string;
+      name: string;
+      photoUrl: string | null;
+      menteeIds: string[];
+      // Named here so the diagram can draw a mentor's people even when a mentee
+      // leads no group and so has no node of their own to borrow a name from.
+      mentees: PersonNode[];
+    }> = [];
     if (fullGraph) {
       const edges = await prisma.mentorRelationship.findMany({
         where: { endedAt: null },
         select: {
-          menteeId: true,
+          mentee: {
+            select: { id: true, firstName: true, lastName: true, preferredName: true, photoUrl: true },
+          },
           mentor: {
             select: { id: true, firstName: true, lastName: true, preferredName: true, photoUrl: true },
           },
         },
       });
-      const byMentor = new Map<string, { name: string; photoUrl: string | null; menteeIds: string[] }>();
+      const byMentor = new Map<
+        string,
+        { name: string; photoUrl: string | null; menteeIds: string[]; mentees: PersonNode[] }
+      >();
       for (const e of edges) {
         const key = e.mentor.id;
         if (!byMentor.has(key)) {
-          byMentor.set(key, { name: nameOf(e.mentor), photoUrl: e.mentor.photoUrl, menteeIds: [] });
+          byMentor.set(key, {
+            name: nameOf(e.mentor),
+            photoUrl: e.mentor.photoUrl,
+            menteeIds: [],
+            mentees: [],
+          });
         }
-        byMentor.get(key)!.menteeIds.push(e.menteeId);
+        const entry = byMentor.get(key)!;
+        entry.menteeIds.push(e.mentee.id);
+        entry.mentees.push({
+          personId: e.mentee.id,
+          name: nameOf(e.mentee),
+          photoUrl: e.mentee.photoUrl,
+        });
       }
+      for (const v of byMentor.values()) v.mentees.sort(byName);
       mentors = [...byMentor.entries()].map(([personId, v]) => ({ personId, ...v })).sort(byName);
     }
 

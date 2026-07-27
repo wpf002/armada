@@ -105,6 +105,8 @@ export interface MentorNode {
   name: string;
   photoUrl: string | null;
   menteeIds: string[];
+  /** The people they mentor, named — a mentee needn't lead a group. */
+  mentees: GroupMemberNode[];
 }
 
 export interface Hierarchy {

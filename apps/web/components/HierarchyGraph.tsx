@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { Hierarchy } from '@/lib/api';
 import { ANCHOR_BOUNDS, ANCHOR_PATHS } from './Anchor';
 
@@ -55,6 +55,8 @@ interface RNode {
   kind: 'leader' | 'disciple' | 'mentor';
   /** Drill into this group instead of navigating away. */
   drillGroupId?: string;
+  /** Drill into this mentor to see who they mentor. */
+  drillMentorId?: string;
   href?: string;
 }
 interface RLink {
@@ -73,9 +75,31 @@ export function HierarchyGraph({
   showMentors: boolean;
 }) {
   const router = useRouter();
+  const params = useSearchParams();
   const [zoom, setZoom] = useState(1);
-  const [focusId, setFocusId] = useState<string | null>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+
+  /**
+   * Which node is drilled into, kept in the URL as `focus=group:<id>` or
+   * `focus=mentor:<id>` rather than in component state. Tapping a person opens
+   * their profile, and Back must land on the sub-view you came from — with the
+   * drill in state alone it would reset to the whole fleet.
+   */
+  const raw = params.get('focus');
+  const focusKind = raw?.startsWith('mentor:') ? 'mentor' : raw ? 'group' : null;
+  const focusId = raw ? raw.slice(raw.indexOf(':') + 1) : null;
+
+  const setFocus = useCallback(
+    (next: string | null) => {
+      const q = new URLSearchParams(params.toString());
+      if (next) q.set('focus', next);
+      else q.delete('focus');
+      router.replace(`/groups?${q.toString()}`, { scroll: false });
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+    },
+    [params, router],
+  );
   const dragRef = useRef<{
     x: number;
     y: number;
@@ -85,11 +109,66 @@ export function HierarchyGraph({
   } | null>(null);
   const draggedRef = useRef(false);
 
-  const focus = focusId ? (hierarchy.groups.find((g) => g.id === focusId) ?? null) : null;
+  const focus =
+    focusKind === 'group' ? (hierarchy.groups.find((g) => g.id === focusId) ?? null) : null;
+  const mentorFocus =
+    focusKind === 'mentor'
+      ? (hierarchy.mentors.find((m) => m.personId === focusId) ?? null)
+      : null;
+  /** Drilled into any single node — the fleet-wide chrome is hidden then. */
+  const drilled = Boolean(focus || mentorFocus);
 
   const { size, center, nodes, links, rings } = useMemo(() => {
     const nodes: RNode[] = [];
     const links: RLink[] = [];
+
+    // ---- Drilled into one mentor: they sit at centre, mentees orbit ----
+    if (mentorFocus) {
+      const centreLines = [shortName(mentorFocus.name, 15)];
+      const centerR = Math.max(76, radiusFor(centreLines, LEADER_FS + 1, 76));
+      const people = mentorFocus.mentees;
+      const lines = people.map((m) => [shortName(m.name, 14)]);
+      const radii = lines.map((l) => radiusFor(l, SAT_FS, 28));
+      const maxR = Math.max(30, ...radii);
+
+      const fitRing = (people.length * (2 * maxR + 16)) / (2 * Math.PI);
+      const ring = Math.max(centerR + maxR + 90, fitRing);
+      const canvasR = ring + maxR + 56;
+      const cx = canvasR;
+      const cy = canvasR;
+
+      people.forEach((m, i) => {
+        const theta = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(people.length, 1);
+        const x = cx + ring * Math.cos(theta);
+        const y = cy + ring * Math.sin(theta);
+        links.push({ x1: cx, y1: cy, x2: x, y2: y, mentor: true });
+        nodes.push({
+          x,
+          y,
+          r: radii[i]!,
+          lines: lines[i]!,
+          kind: 'leader',
+          href: `/people/${m.personId}`,
+        });
+      });
+
+      nodes.push({
+        x: cx,
+        y: cy,
+        r: centerR,
+        lines: centreLines,
+        kind: 'mentor',
+        href: `/people/${mentorFocus.personId}`,
+      });
+
+      return {
+        size: canvasR * 2,
+        center: { cx, cy },
+        nodes,
+        links,
+        rings: people.length ? [ring] : [],
+      };
+    }
 
     // ---- Drilled into one group: it sits at center, members orbit ----
     if (focus) {
@@ -278,7 +357,7 @@ export function HierarchyGraph({
           r: radiusFor(mLines, SAT_FS, 30),
           lines: mLines,
           kind: 'mentor',
-          href: `/people/${m.personId}`,
+          drillMentorId: m.personId,
         });
         for (const menteeId of m.menteeIds) {
           const p = leaderPos.get(menteeId);
@@ -288,10 +367,10 @@ export function HierarchyGraph({
     }
 
     return { size: canvasR * 2, center: { cx, cy }, nodes, links, rings: [ring, r1] };
-  }, [hierarchy, showMentors, focus]);
+  }, [hierarchy, showMentors, focus, mentorFocus]);
 
   // Anchor scales with the drawing so the hub never floats in empty space.
-  const anchorR = focus ? 0 : Math.max(70, Math.min(150, size * 0.055));
+  const anchorR = drilled ? 0 : Math.max(70, Math.min(150, size * 0.055));
   // Centre on the mark's real ink bounds, not its artboard, so it sits dead
   // centre in the hub disc.
   const anchorScale = (anchorR * 1.25) / ANCHOR_BOUNDS.height;
@@ -414,10 +493,12 @@ export function HierarchyGraph({
 
   function onNode(n: RNode) {
     if (draggedRef.current) return; // panning, not a tap
-    if (n.drillGroupId && !focus) {
-      setFocusId(n.drillGroupId);
-      setZoom(1);
-      setPan({ x: 0, y: 0 });
+    if (n.drillMentorId && !focus && !mentorFocus) {
+      setFocus(`mentor:${n.drillMentorId}`);
+      return;
+    }
+    if (n.drillGroupId && !focus && !mentorFocus) {
+      setFocus(`group:${n.drillGroupId}`);
       return;
     }
     if (n.href) router.push(n.href);
@@ -428,16 +509,12 @@ export function HierarchyGraph({
       {/* Controls sit ABOVE the canvas, not over it — floating them on top of
           the drawing clipped the outermost nodes behind the chips. */}
       <div className="mb-2 flex items-center justify-between gap-2">
-        {focus ? (
+        {drilled ? (
           <button
-            onClick={() => {
-              setFocusId(null);
-              setZoom(1);
-              setPan({ x: 0, y: 0 });
-            }}
+            onClick={() => setFocus(null)}
             className="rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink-soft"
           >
-            ← All Groups
+            ← The Fleet
           </button>
         ) : (
           <span />
@@ -494,7 +571,7 @@ export function HierarchyGraph({
           </defs>
 
           {/* Warm halo behind the anchor, then faint guide rings for each orbit. */}
-          {!focus && <circle cx={center.cx} cy={center.cy} r={size * 0.3} fill="url(#fleetGlow)" />}
+          {!drilled && <circle cx={center.cx} cy={center.cy} r={size * 0.3} fill="url(#fleetGlow)" />}
           {rings.map((r, i) => (
             <circle
               key={i}
@@ -534,7 +611,7 @@ export function HierarchyGraph({
             ))}
 
           {/* Center anchor (fleet view only) */}
-          {!focus && (
+          {!drilled && (
             <>
               <circle
                 cx={center.cx}
