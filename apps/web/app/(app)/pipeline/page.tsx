@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useSession } from '@/lib/auth-client';
@@ -31,6 +31,8 @@ export default function PipelinePage() {
   const [overStage, setOverStage] = useState<Interest['status'] | null>(null);
   const [removing, setRemoving] = useState<Interest | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
+  /** Live bounds of each stage column, for hit-testing a finger drag. */
+  const stageRefs = useRef(new Map<Interest['status'], HTMLElement>());
 
   const load = useCallback(() => {
     if (!isAdmin) return;
@@ -48,6 +50,42 @@ export default function PipelinePage() {
     } finally {
       setBusy(null);
     }
+  }
+
+  /**
+   * Dragging runs on pointer events, not HTML5 drag-and-drop: `dragstart` never
+   * fires from touch, so on a phone the board could not be used at all. The
+   * grip is the only element with `touch-action: none`, so a drag starts there
+   * while the rest of the card still scrolls the page normally.
+   */
+  function stageAt(x: number, y: number): Interest['status'] | null {
+    for (const [key, el] of stageRefs.current) {
+      const r = el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return key;
+    }
+    return null;
+  }
+
+  function onGripDown(e: React.PointerEvent<HTMLElement>, id: string) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragId(id);
+  }
+
+  function onGripMove(e: React.PointerEvent<HTMLElement>) {
+    if (!dragId) return;
+    setOverStage(stageAt(e.clientX, e.clientY));
+  }
+
+  function onGripUp(e: React.PointerEvent<HTMLElement>) {
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    const target = dragId ? stageAt(e.clientX, e.clientY) : null;
+    const card = items.find((i) => i.id === dragId);
+    if (dragId && target && card && card.status !== target) move(dragId, target);
+    setDragId(null);
+    setOverStage(null);
   }
 
   // Remove from the queue = mark the interest DECLINED. It drops off the board
@@ -75,7 +113,7 @@ export default function PipelinePage() {
       <p className="eyebrow">Discipleship</p>
       <h1 className="display text-[26px]">Wants To Be Discipled</h1>
       <p className="mt-1 text-sm text-muted">
-        Drag a name between stages.
+        Drag the ⠿ handle to move a name between stages.
       </p>
 
       <div className="mt-5 flex flex-col gap-6">
@@ -84,16 +122,9 @@ export default function PipelinePage() {
           return (
             <section
               key={stage.key}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setOverStage(stage.key);
-              }}
-              onDragLeave={() => setOverStage((s2) => (s2 === stage.key ? null : s2))}
-              onDrop={(e) => {
-                e.preventDefault();
-                setOverStage(null);
-                if (dragId) move(dragId, stage.key);
-                setDragId(null);
+              ref={(el) => {
+                if (el) stageRefs.current.set(stage.key, el);
+                else stageRefs.current.delete(stage.key);
               }}
               className={`rounded-card p-2 transition-colors ${
                 overStage === stage.key ? 'bg-olive/10 ring-2 ring-olive/40' : ''
@@ -106,18 +137,23 @@ export default function PipelinePage() {
                 {cards.map((i) => (
                   <div
                     key={i.id}
-                    draggable
-                    onDragStart={() => setDragId(i.id)}
-                    onDragEnd={() => {
-                      setDragId(null);
-                      setOverStage(null);
-                    }}
-                    className={`card cursor-grab p-4 active:cursor-grabbing ${
-                      busy === i.id ? 'opacity-50' : ''
-                    } ${dragId === i.id ? 'opacity-40' : ''}`}
+                    className={`card p-4 ${busy === i.id ? 'opacity-50' : ''} ${
+                      dragId === i.id ? 'opacity-40 ring-2 ring-olive/40' : ''
+                    }`}
                   >
                     <div className="flex items-start gap-3">
-                      <span className="mt-1 select-none text-muted" aria-hidden>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Drag ${i.person.name} to another stage`}
+                        onPointerDown={(e) => onGripDown(e, i.id)}
+                        onPointerMove={onGripMove}
+                        onPointerUp={onGripUp}
+                        onPointerCancel={onGripUp}
+                        // Only the grip disables native touch behaviour, so the
+                        // list still scrolls when dragged anywhere else.
+                        className="-m-2 cursor-grab touch-none select-none p-2 text-muted active:cursor-grabbing"
+                      >
                         ⠿
                       </span>
                       <Link href={`/people/${i.person.id}`} className="min-w-0 flex-1">
