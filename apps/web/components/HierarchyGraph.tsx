@@ -304,28 +304,112 @@ export function HierarchyGraph({
   const vb = size / zoom;
   const viewBox = `${center.cx - vb / 2 + pan.x} ${center.cy - vb / 2 + pan.y} ${vb} ${vb}`;
 
-  // Drag/touch panning. Pointer events cover mouse and touch alike; we convert
-  // screen movement into viewBox units so panning tracks the finger 1:1.
+  // Pointer input: one finger pans, two fingers pinch-zoom. `touchAction:none`
+  // suppresses the browser's own gestures (needed so a drag doesn't scroll the
+  // page), which means pinch has to be implemented here or it simply doesn't
+  // exist on a phone.
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<{ dist: number; zoom: number; panX: number; panY: number; midX: number; midY: number } | null>(null);
+
+  /**
+   * The SVG is square and drawn with preserveAspectRatio="xMidYMid meet", so
+   * the content is a centred square of `content` px. Returns that box plus how
+   * many viewBox units a pixel is worth.
+   */
+  function viewportMetrics(el: SVGSVGElement) {
+    const rect = el.getBoundingClientRect();
+    const content = Math.min(rect.width, rect.height);
+    return {
+      content,
+      unitsPerPx: vb / content,
+      offX: rect.left + (rect.width - content) / 2,
+      offY: rect.top + (rect.height - content) / 2,
+    };
+  }
+
+  function twoPointers(): [{ x: number; y: number }, { x: number; y: number }] | null {
+    const pts = [...pointersRef.current.values()];
+    return pts.length >= 2 ? [pts[0]!, pts[1]!] : null;
+  }
+
   function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    e.currentTarget.setPointerCapture(e.pointerId);
+
+    const two = twoPointers();
+    if (two) {
+      // Second finger down: start a pinch and stop any in-flight pan.
+      dragRef.current = null;
+      const [a, b] = two;
+      pinchRef.current = {
+        dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+        zoom,
+        panX: pan.x,
+        panY: pan.y,
+        midX: (a.x + b.x) / 2,
+        midY: (a.y + b.y) / 2,
+      };
+      return;
+    }
+    // Single finger only pans once zoomed in; at fit there's nowhere to go.
     if (zoom <= 1) return;
     dragRef.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y, moved: false };
-    e.currentTarget.setPointerCapture(e.pointerId);
   }
+
   function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
+    if (pointersRef.current.has(e.pointerId)) {
+      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
+    const pinch = pinchRef.current;
+    const two = twoPointers();
+    if (pinch && two) {
+      const [a, b] = two;
+      const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      const next = Math.min(4, Math.max(1, pinch.zoom * (dist / pinch.dist)));
+
+      // Anchor the point under the fingers. With f the midpoint's fraction
+      // across the content box, userX = vbMin + f*vb, and holding userX fixed
+      // while vb changes gives: pan' = pan + (vb0 - vb1) * (f - 0.5).
+      const { content, offX, offY } = viewportMetrics(e.currentTarget);
+      const fx = (pinch.midX - offX) / content;
+      const fy = (pinch.midY - offY) / content;
+      const vb0 = size / pinch.zoom;
+      const vb1 = size / next;
+
+      setZoom(+next.toFixed(3));
+      setPan(
+        next <= 1
+          ? { x: 0, y: 0 }
+          : {
+              x: pinch.panX + (vb0 - vb1) * (fx - 0.5),
+              y: pinch.panY + (vb0 - vb1) * (fy - 0.5),
+            },
+      );
+      draggedRef.current = true; // a pinch is never a tap
+      return;
+    }
+
     const d = dragRef.current;
     if (!d) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const unitsPerPx = vb / Math.min(rect.width, rect.height);
+    const { unitsPerPx } = viewportMetrics(e.currentTarget);
     const dx = (e.clientX - d.x) * unitsPerPx;
     const dy = (e.clientY - d.y) * unitsPerPx;
     if (Math.abs(e.clientX - d.x) > 4 || Math.abs(e.clientY - d.y) > 4) d.moved = true;
     setPan({ x: d.panX - dx, y: d.panY - dy });
   }
+
   function onPointerUp(e: React.PointerEvent<SVGSVGElement>) {
-    if (dragRef.current) e.currentTarget.releasePointerCapture(e.pointerId);
-    // Keep "was this a drag?" briefly so the click handler can ignore it.
-    draggedRef.current = dragRef.current?.moved ?? false;
-    dragRef.current = null;
+    pointersRef.current.delete(e.pointerId);
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    if (pointersRef.current.size < 2) pinchRef.current = null;
+    if (dragRef.current) {
+      // Keep "was this a drag?" briefly so the click handler can ignore it.
+      draggedRef.current = dragRef.current.moved;
+      dragRef.current = null;
+    }
   }
 
   function onNode(n: RNode) {
