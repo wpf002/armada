@@ -53,11 +53,19 @@ export default function PipelinePage() {
   }
 
   /**
-   * Dragging runs on pointer events, not HTML5 drag-and-drop: `dragstart` never
-   * fires from touch, so on a phone the board could not be used at all. The
-   * grip is the only element with `touch-action: none`, so a drag starts there
-   * while the rest of the card still scrolls the page normally.
+   * Dragging runs on pointer events, not HTML5 drag-and-drop, whose `dragstart`
+   * never fires from touch — on a phone the board was unusable.
+   *
+   * A long press anywhere on the card starts the drag, the way native reorder
+   * UIs behave: a drag that only worked from the small grip is invisible when
+   * the obvious thing to grab is the name. Moving before the press completes is
+   * treated as a scroll and cancels it, so a 63-name list still scrolls
+   * normally. Once dragging, a non-passive touchmove listener suppresses
+   * scrolling — `touch-action` can't be changed mid-gesture.
    */
+  const pressRef = useRef<{ id: string; x: number; y: number; timer: number } | null>(null);
+  const draggingRef = useRef(false);
+
   function stageAt(x: number, y: number): Interest['status'] | null {
     for (const [key, el] of stageRefs.current) {
       const r = el.getBoundingClientRect();
@@ -66,26 +74,61 @@ export default function PipelinePage() {
     return null;
   }
 
-  function onGripDown(e: React.PointerEvent<HTMLElement>, id: string) {
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
+  const endPress = useCallback(() => {
+    if (pressRef.current) window.clearTimeout(pressRef.current.timer);
+    pressRef.current = null;
+    draggingRef.current = false;
+    setDragId(null);
+    setOverStage(null);
+  }, []);
+
+  // Block scrolling only while a drag is actually in progress.
+  useEffect(() => {
+    if (!dragId) return;
+    const block = (e: TouchEvent) => e.preventDefault();
+    document.addEventListener('touchmove', block, { passive: false });
+    return () => document.removeEventListener('touchmove', block);
+  }, [dragId]);
+
+  function beginDrag(id: string) {
+    draggingRef.current = true;
     setDragId(id);
+    // A short buzz confirms the card is now held, as on native lists.
+    navigator.vibrate?.(15);
   }
 
-  function onGripMove(e: React.PointerEvent<HTMLElement>) {
-    if (!dragId) return;
+  function onCardPointerDown(e: React.PointerEvent<HTMLElement>, id: string) {
+    // Ignore the remove button and the name link.
+    if ((e.target as HTMLElement).closest('a,button')) return;
+    const timer = window.setTimeout(() => beginDrag(id), 220);
+    pressRef.current = { id, x: e.clientX, y: e.clientY, timer };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+
+  function onCardPointerMove(e: React.PointerEvent<HTMLElement>) {
+    const p = pressRef.current;
+    if (!p) return;
+    if (!draggingRef.current) {
+      // Moved before the press matured — the user is scrolling, not dragging.
+      if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > 10) {
+        window.clearTimeout(p.timer);
+        pressRef.current = null;
+      }
+      return;
+    }
     setOverStage(stageAt(e.clientX, e.clientY));
   }
 
-  function onGripUp(e: React.PointerEvent<HTMLElement>) {
+  function onCardPointerUp(e: React.PointerEvent<HTMLElement>) {
     if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
-    const target = dragId ? stageAt(e.clientX, e.clientY) : null;
-    const card = items.find((i) => i.id === dragId);
-    if (dragId && target && card && card.status !== target) move(dragId, target);
-    setDragId(null);
-    setOverStage(null);
+    if (draggingRef.current && dragId) {
+      const target = stageAt(e.clientX, e.clientY);
+      const card = items.find((i) => i.id === dragId);
+      if (target && card && card.status !== target) move(dragId, target);
+    }
+    endPress();
   }
 
   // Remove from the queue = mark the interest DECLINED. It drops off the board
@@ -113,7 +156,7 @@ export default function PipelinePage() {
       <p className="eyebrow">Discipleship</p>
       <h1 className="display text-[26px]">Wants To Be Discipled</h1>
       <p className="mt-1 text-sm text-muted">
-        Drag the ⠿ handle to move a name between stages.
+        Press and hold a name, then drag it to another stage.
       </p>
 
       <div className="mt-5 flex flex-col gap-6">
@@ -137,23 +180,21 @@ export default function PipelinePage() {
                 {cards.map((i) => (
                   <div
                     key={i.id}
-                    className={`card p-4 ${busy === i.id ? 'opacity-50' : ''} ${
-                      dragId === i.id ? 'opacity-40 ring-2 ring-olive/40' : ''
+                    onPointerDown={(e) => onCardPointerDown(e, i.id)}
+                    onPointerMove={onCardPointerMove}
+                    onPointerUp={onCardPointerUp}
+                    onPointerCancel={onCardPointerUp}
+                    onContextMenu={(e) => e.preventDefault()}
+                    className={`card select-none p-4 transition-shadow ${
+                      busy === i.id ? 'opacity-50' : ''
+                    } ${
+                      dragId === i.id
+                        ? 'scale-[1.02] shadow-lg ring-2 ring-olive/50'
+                        : 'cursor-grab active:cursor-grabbing'
                     }`}
                   >
                     <div className="flex items-start gap-3">
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`Drag ${i.person.name} to another stage`}
-                        onPointerDown={(e) => onGripDown(e, i.id)}
-                        onPointerMove={onGripMove}
-                        onPointerUp={onGripUp}
-                        onPointerCancel={onGripUp}
-                        // Only the grip disables native touch behaviour, so the
-                        // list still scrolls when dragged anywhere else.
-                        className="-m-2 cursor-grab touch-none select-none p-2 text-muted active:cursor-grabbing"
-                      >
+                      <span className="mt-1 select-none text-muted" aria-hidden>
                         ⠿
                       </span>
                       <Link href={`/people/${i.person.id}`} className="min-w-0 flex-1">
