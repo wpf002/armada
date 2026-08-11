@@ -271,6 +271,9 @@ export function registerPeopleRoutes(app: FastifyInstance) {
       .nullable()
       .optional(),
     photoUrl: z.string().url().nullable().optional(),
+    // Where they are in the ministry. Admin-only (checked below): it drives the
+    // member count and who shows as a prospect, so it isn't a self-edit.
+    status: z.enum(['PROSPECT', 'ACTIVE', 'INACTIVE', 'ALUMNI']).optional(),
   });
 
   app.patch('/people/:id', { preHandler: requireAuth }, async (request, reply) => {
@@ -281,6 +284,9 @@ export function registerPeopleRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'forbidden' });
     }
     const data = editableSchema.parse(request.body);
+    if (data.status !== undefined && user.role !== 'ADMIN') {
+      return reply.status(403).send({ error: 'Only an admin can change status' });
+    }
     const before = await prisma.person.findUnique({ where: { id } });
     if (!before) return reply.status(404).send({ error: 'not found' });
 

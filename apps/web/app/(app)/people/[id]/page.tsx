@@ -24,6 +24,8 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
  * be visible-but-uneditable (or the reverse).
  */
 const DETAIL_FIELDS = [
+  // Where they are in the ministry. Admin-only: it drives the member count.
+  { key: 'status', label: 'Status', kind: 'status', adminOnly: true },
   { key: 'phone', label: 'Phone', kind: 'tel' },
   { key: 'email', label: 'Email', kind: 'email' },
   { key: 'occupation', label: 'Occupation', kind: 'text' },
@@ -36,6 +38,7 @@ const DETAIL_FIELDS = [
 ] as const;
 
 const MARITAL_OPTIONS = ['', 'SINGLE', 'MARRIED', 'ENGAGED', 'DIVORCED', 'WIDOWED'] as const;
+const STATUS_OPTIONS = ['PROSPECT', 'ACTIVE', 'INACTIVE', 'ALUMNI'] as const;
 
 const titleCase = (v: string) => v.charAt(0) + v.slice(1).toLowerCase();
 
@@ -85,6 +88,7 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
   const wantsToLead = (person.interests ?? []).some((i) => i.type === 'WANTS_TO_LEAD');
 
   const details: Array<[string, string | null | undefined]> = [
+    ['Status', person.status ? titleCase(person.status) : null],
     ['Occupation', person.occupation],
     ['Marital Status', person.maritalStatus ? titleCase(person.maritalStatus) : null],
     ['Address', person.address],
@@ -185,10 +189,19 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
       {/* Who this leader is discipling — the disciples of each group they lead.
           Editing here is editing group membership, so it shows up on the group
           page and the hierarchy too. */}
+      {/* No group of their own yet — an admin can start one here. Until this
+          exists a person can't be promoted from their profile at all: they
+          can't take disciples, and the mentor check refuses them because it
+          keys off leading a group. */}
+      {isAdmin && ledGroups.length === 0 && (
+        <StartGroup personId={id} name={personDisplayName(person)} onDone={reload} />
+      )}
+
       {ledGroups.map((g) => (
         <DisciplingEditor
           key={g.groupId}
           group={g}
+          personId={id}
           isAdmin={isAdmin}
           // Only worth naming the group when they lead more than one; with a
           // single group the heading would just repeat what's above it.
@@ -220,7 +233,13 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
                   // Blank input means "clear this field", not "leave it alone".
                   const patch: Record<string, string | null> = {};
                   for (const f of DETAIL_FIELDS) {
+                    if ('adminOnly' in f && f.adminOnly && !isAdmin) continue;
                     const v = (draft[f.key] ?? '').trim();
+                    // Status is an enum with no empty member; omit it if unset.
+                    if (f.kind === 'status') {
+                      if (v) patch[f.key] = v;
+                      continue;
+                    }
                     patch[f.key] = v === '' ? null : v;
                   }
                   await api(`/people/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
@@ -235,10 +254,22 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
               }}
               className="card flex flex-col divide-y divide-line"
             >
-              {DETAIL_FIELDS.map((f) => (
+              {DETAIL_FIELDS.filter((f) => !('adminOnly' in f && f.adminOnly) || isAdmin).map((f) => (
                 <label key={f.key} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
                   <span className="w-28 shrink-0 text-sm text-muted">{f.label}</span>
-                  {f.kind === 'marital' ? (
+                  {f.kind === 'status' ? (
+                    <select
+                      value={draft[f.key] || 'PROSPECT'}
+                      onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+                      className="min-h-[44px] w-full rounded-lg border border-line bg-surface px-3 outline-none focus:border-deep"
+                    >
+                      {STATUS_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {titleCase(o)}
+                        </option>
+                      ))}
+                    </select>
+                  ) : f.kind === 'marital' ? (
                     <select
                       value={draft[f.key] ?? ''}
                       onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
@@ -631,16 +662,75 @@ function MentorEditor({
 }
 
 /**
+ * Promote someone into leadership: create a group and put them at its head.
+ * The group's name derives from its leaders, so it is named after them the
+ * moment this runs (invariant #8).
+ */
+function StartGroup({
+  personId,
+  name,
+  onDone,
+}: {
+  personId: string;
+  name: string;
+  onDone: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function start() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api<{ group: { id: string } }>('/groups', { method: 'POST', body: '{}' });
+      await api(`/groups/${r.group.id}/members`, {
+        method: 'POST',
+        body: JSON.stringify({ personId, role: 'LEADER' }),
+      });
+      onDone();
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mt-6">
+      <p className="eyebrow mb-2">Leading</p>
+      <div className="rounded-card border border-dashed border-line px-4 py-4">
+        <p className="text-sm text-muted">
+          {name} doesn&apos;t lead a group yet. Starting one lets you add disciples and
+          co-leaders, and makes them eligible for a mentor.
+        </p>
+        {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
+        <button
+          onClick={start}
+          disabled={busy}
+          className="btn-olive mt-3 h-10 min-h-0 px-4 text-sm disabled:opacity-50"
+        >
+          {busy ? 'Starting…' : 'Start A Group'}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/**
  * The disciples of one group this person leads, with add/remove. This is group
  * membership, so every edit lands on the group page and the hierarchy as well.
  */
 function DisciplingEditor({
   group,
+  personId,
   isAdmin,
   showGroupName,
   onChanged,
 }: {
   group: GroupRef;
+  /** Whose profile this is — they're the leader, so everyone else leading the
+   *  same group is a co-leader. */
+  personId: string;
   isAdmin: boolean;
   showGroupName: boolean;
   onChanged: () => void;
@@ -648,6 +738,7 @@ function DisciplingEditor({
   const [detail, setDetail] = useState<GroupDetail | null>(null);
   const [adding, setAdding] = useState(false);
   const [pick, setPick] = useState<DirectoryPerson | null>(null);
+  const [addRole, setAddRole] = useState<'DISCIPLE' | 'LEADER'>('DISCIPLE');
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<{ personId: string; name: string } | null>(null);
 
@@ -664,9 +755,10 @@ function DisciplingEditor({
     try {
       await api(`/groups/${group.groupId}/members`, {
         method: 'POST',
-        body: JSON.stringify({ personId: pick.id, role: 'DISCIPLE' }),
+        body: JSON.stringify({ personId: pick.id, role: addRole }),
       });
       setPick(null);
+      setAddRole('DISCIPLE');
       setAdding(false);
       load();
       onChanged();
@@ -689,6 +781,7 @@ function DisciplingEditor({
   }
 
   const disciples = detail?.disciples ?? [];
+  const coLeaders = (detail?.leaders ?? []).filter((l) => l.personId !== personId);
   const excludeIds = [
     ...(detail?.leaders.map((l) => l.personId) ?? []),
     ...disciples.map((d) => d.personId),
@@ -713,13 +806,26 @@ function DisciplingEditor({
             exclude={excludeIds}
             placeholder="Search People…"
           />
+          <div className="flex gap-2 text-sm">
+            {(['DISCIPLE', 'LEADER'] as const).map((r) => (
+              <button
+                key={r}
+                onClick={() => setAddRole(r)}
+                className={`rounded-full px-3 py-1.5 ${
+                  addRole === r ? 'bg-deep text-cream' : 'bg-sand text-ink-soft'
+                }`}
+              >
+                {r === 'DISCIPLE' ? 'Disciple' : 'Co-Leader'}
+              </button>
+            ))}
+          </div>
           <div className="flex gap-2">
             <button
               onClick={add}
               disabled={!pick || busy}
               className="btn-olive h-10 min-h-0 px-4 text-sm disabled:opacity-40"
             >
-              {busy ? 'Saving…' : 'Add Disciple'}
+              {busy ? 'Saving…' : addRole === 'LEADER' ? 'Add Co-Leader' : 'Add Disciple'}
             </button>
             <button
               onClick={() => {
@@ -731,6 +837,28 @@ function DisciplingEditor({
               Cancel
             </button>
           </div>
+        </div>
+      )}
+
+      {coLeaders.length > 0 && (
+        <div className="card mb-2 divide-y divide-line">
+          {coLeaders.map((l) => (
+            <div key={l.personId} className="flex items-center justify-between px-4 py-2.5">
+              <Link href={`/people/${l.personId}`} className="min-w-0 truncate text-ink-soft">
+                {l.name}
+                <span className="ml-2 text-xs uppercase tracking-wide text-muted">Co-Leader</span>
+              </Link>
+              {isAdmin && (
+                <button
+                  onClick={() => setRemoving({ personId: l.personId, name: l.name })}
+                  aria-label={`Remove ${l.name}`}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-base leading-none text-muted hover:bg-sand hover:text-red-600"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
