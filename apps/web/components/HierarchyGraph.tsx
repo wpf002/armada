@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { Hierarchy } from '@/lib/api';
 import { ANCHOR_BOUNDS, ANCHOR_PATHS } from './Anchor';
@@ -70,14 +70,22 @@ interface RLink {
 export function HierarchyGraph({
   hierarchy,
   showMentors,
+  zoom,
+  setZoom,
+  pan,
+  setPan,
 }: {
   hierarchy: Hierarchy;
   showMentors: boolean;
+  /** Zoom/pan are owned by the page so its zoom control can sit inline with
+   *  the view tabs rather than on a row of its own. */
+  zoom: number;
+  setZoom: (z: number) => void;
+  pan: { x: number; y: number };
+  setPan: (p: { x: number; y: number }) => void;
 }) {
   const router = useRouter();
   const params = useSearchParams();
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
 
   /**
    * Which node is drilled into, kept in the URL as `focus=group:<id>` or
@@ -112,9 +120,7 @@ export function HierarchyGraph({
   const focus =
     focusKind === 'group' ? (hierarchy.groups.find((g) => g.id === focusId) ?? null) : null;
   const mentorFocus =
-    focusKind === 'mentor'
-      ? (hierarchy.mentors.find((m) => m.personId === focusId) ?? null)
-      : null;
+    focusKind === 'mentor' ? (hierarchy.mentors.find((m) => m.personId === focusId) ?? null) : null;
   /** Drilled into any single node — the fleet-wide chrome is hidden then. */
   const drilled = Boolean(focus || mentorFocus);
 
@@ -388,7 +394,14 @@ export function HierarchyGraph({
   // page), which means pinch has to be implemented here or it simply doesn't
   // exist on a phone.
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
-  const pinchRef = useRef<{ dist: number; zoom: number; panX: number; panY: number; midX: number; midY: number } | null>(null);
+  const pinchRef = useRef<{
+    dist: number;
+    zoom: number;
+    panX: number;
+    panY: number;
+    midX: number;
+    midY: number;
+  } | null>(null);
 
   /**
    * The SVG is square and drawn with preserveAspectRatio="xMidYMid meet", so
@@ -506,49 +519,19 @@ export function HierarchyGraph({
 
   return (
     <div>
-      {/* Controls sit ABOVE the canvas, not over it — floating them on top of
-          the drawing clipped the outermost nodes behind the chips. */}
-      <div className="mb-2 flex items-center justify-between gap-2">
-        {drilled ? (
+      {/* Only the back-out control lives here; zoom sits inline with the view
+          tabs on the page. Controls stay ABOVE the canvas rather than floating
+          over it, which clipped the outermost nodes behind them. */}
+      {drilled && (
+        <div className="mb-2 flex items-center gap-2">
           <button
             onClick={() => setFocus(null)}
             className="rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink-soft"
           >
             ← The Fleet
           </button>
-        ) : (
-          <span />
-        )}
-        <div className="flex items-center gap-1 rounded-full border border-line bg-surface px-1 py-1">
-          <button
-            onClick={() => {
-              const nz = Math.max(1, +(zoom - 0.5).toFixed(1));
-              setZoom(nz);
-              if (nz === 1) setPan({ x: 0, y: 0 });
-            }}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-ink-soft hover:bg-sand"
-            aria-label="Zoom out"
-          >
-            −
-          </button>
-          <button
-            onClick={() => {
-              setZoom(1);
-              setPan({ x: 0, y: 0 });
-            }}
-            className="px-2 text-xs font-medium text-muted hover:text-ink"
-          >
-            Fit
-          </button>
-          <button
-            onClick={() => setZoom((z) => Math.min(4, +(z + 0.5).toFixed(1)))}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-ink-soft hover:bg-sand"
-            aria-label="Zoom in"
-          >
-            +
-          </button>
         </div>
-      </div>
+      )}
 
       {/* The diagram always fits its box; zoom narrows the viewBox. The drawing
           is square, so a square box on mobile wastes no cream above and below. */}
@@ -571,7 +554,9 @@ export function HierarchyGraph({
           </defs>
 
           {/* Warm halo behind the anchor, then faint guide rings for each orbit. */}
-          {!drilled && <circle cx={center.cx} cy={center.cy} r={size * 0.3} fill="url(#fleetGlow)" />}
+          {!drilled && (
+            <circle cx={center.cx} cy={center.cy} r={size * 0.3} fill="url(#fleetGlow)" />
+          )}
           {rings.map((r, i) => (
             <circle
               key={i}

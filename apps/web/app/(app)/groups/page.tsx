@@ -55,6 +55,9 @@ export default function GroupsPage() {
   const [addingLeader, setAddingLeader] = useState(false);
   const [addingMentor, setAddingMentor] = useState(false);
   const [creatingGroup, setCreatingGroup] = useState(false);
+  // Owned here so the zoom control can sit in the tab row, not on its own line.
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
   const [users, setUsers] = useState<AppUser[]>([]);
 
   const load = useCallback(() => {
@@ -115,21 +118,54 @@ export default function GroupsPage() {
       <p className="eyebrow">Discipleship Groups</p>
       <h1 className="display text-[26px]">{heading}</h1>
 
-      {/* View tabs */}
-      <div className="mt-4 grid grid-cols-4 gap-1.5">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => selectView(t.key)}
-            className={`rounded-full px-2 py-2 text-center text-[13px] font-medium transition-colors ${
-              view === t.key
-                ? 'bg-deep text-cream'
-                : 'border border-line text-ink-soft hover:bg-sand/60'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* View tabs, with the map's zoom control on the same line */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="grid min-w-[260px] flex-1 grid-cols-4 gap-1.5">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => selectView(t.key)}
+              className={`rounded-full px-2 py-2 text-center text-[13px] font-medium transition-colors ${
+                view === t.key
+                  ? 'bg-deep text-cream'
+                  : 'border border-line text-ink-soft hover:bg-sand/60'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {view === 'map' && (
+          <div className="flex shrink-0 items-center gap-1 rounded-full border border-line bg-surface px-1 py-1">
+            <button
+              onClick={() => {
+                const nz = Math.max(1, +(zoom - 0.5).toFixed(1));
+                setZoom(nz);
+                if (nz === 1) setPan({ x: 0, y: 0 });
+              }}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-ink-soft hover:bg-sand"
+              aria-label="Zoom out"
+            >
+              −
+            </button>
+            <button
+              onClick={() => {
+                setZoom(1);
+                setPan({ x: 0, y: 0 });
+              }}
+              className="px-2 text-xs font-medium text-muted hover:text-ink"
+            >
+              Fit
+            </button>
+            <button
+              onClick={() => setZoom(Math.min(4, +(zoom + 0.5).toFixed(1)))}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-ink-soft hover:bg-sand"
+              aria-label="Zoom in"
+            >
+              +
+            </button>
+          </div>
+        )}
       </div>
 
       {error && <p className="mt-4 text-red-700">{error}</p>}
@@ -259,12 +295,18 @@ export default function GroupsPage() {
               </label>
             </div>
             <div className="md:mx-[calc(50%-50vw)] md:w-screen md:px-6">
-              <HierarchyGraph hierarchy={data} showMentors={showMentorRing} />
+              <HierarchyGraph
+                hierarchy={data}
+                showMentors={showMentorRing}
+                zoom={zoom}
+                setZoom={setZoom}
+                pan={pan}
+                setPan={setPan}
+              />
             </div>
           </>
         )}
       </div>
-
     </div>
   );
 }
