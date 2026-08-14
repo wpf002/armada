@@ -24,6 +24,13 @@ function csvCell(v: unknown): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+/** Seed/demo logins on reserved domains — never real users of the app. */
+const DEMO_LOGIN_DOMAINS = ['@armada.test', '@preview.armada'];
+export function isDemoLogin(email: string): boolean {
+  const e = email.toLowerCase();
+  return DEMO_LOGIN_DOMAINS.some((d) => e.endsWith(d));
+}
+
 export function registerAdminRoutes(app: FastifyInstance) {
   // ---- Users + roles ----
   app.get('/admin/users', { preHandler: requireRole('ADMIN') }, async () => {
@@ -38,13 +45,19 @@ export function registerAdminRoutes(app: FastifyInstance) {
       },
     });
     return {
-      users: users.map((u) => ({
-        id: u.id,
-        email: u.email,
-        role: u.role,
-        personId: u.person.id,
-        name: personName(u.person),
-      })),
+      // Seed and demo logins live on reserved domains that can't receive mail;
+      // they're scaffolding, not people who use Armada, so they don't belong in
+      // the user list or its count. Filtered in JS rather than with a SQL NOT
+      // LIKE, which silently drops rows when the column is null.
+      users: users
+        .filter((u) => !isDemoLogin(u.email))
+        .map((u) => ({
+          id: u.id,
+          email: u.email,
+          role: u.role,
+          personId: u.person.id,
+          name: personName(u.person),
+        })),
     };
   });
 
