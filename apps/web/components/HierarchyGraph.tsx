@@ -426,11 +426,18 @@ export function HierarchyGraph({
 
   function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    e.currentTarget.setPointerCapture(e.pointerId);
 
     const two = twoPointers();
     if (two) {
-      // Second finger down: start a pinch and stop any in-flight pan.
+      // Second finger down: start a pinch and stop any in-flight pan. Capture
+      // here — a two-finger gesture is never a click, so retargeting is safe.
+      for (const id of pointersRef.current.keys()) {
+        try {
+          e.currentTarget.setPointerCapture(id);
+        } catch {
+          /* pointer already gone */
+        }
+      }
       dragRef.current = null;
       const [a, b] = two;
       pinchRef.current = {
@@ -444,6 +451,11 @@ export function HierarchyGraph({
       return;
     }
     // Single finger only pans once zoomed in; at fit there's nowhere to go.
+    //
+    // Deliberately NOT capturing the pointer yet. While a capture is active the
+    // browser retargets the following `click` to the capture element, so
+    // capturing on every press swallowed every node click. Capture is taken on
+    // the first real movement instead, which is when panning actually needs it.
     if (zoom <= 1) return;
     dragRef.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y, moved: false };
   }
@@ -487,7 +499,17 @@ export function HierarchyGraph({
     const { unitsPerPx } = viewportMetrics(e.currentTarget);
     const dx = (e.clientX - d.x) * unitsPerPx;
     const dy = (e.clientY - d.y) * unitsPerPx;
-    if (Math.abs(e.clientX - d.x) > 4 || Math.abs(e.clientY - d.y) > 4) d.moved = true;
+    if (!d.moved && (Math.abs(e.clientX - d.x) > 4 || Math.abs(e.clientY - d.y) > 4)) {
+      d.moved = true;
+      // Now it's a drag, not a click — take the pointer so panning survives
+      // leaving the element.
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* pointer already gone */
+      }
+    }
+    if (!d.moved) return;
     setPan({ x: d.panX - dx, y: d.panY - dy });
   }
 
