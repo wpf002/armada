@@ -535,7 +535,38 @@ export function HierarchyGraph({
 
       {/* The diagram always fits its box; zoom narrows the viewBox. The drawing
           is square, so a square box on mobile wastes no cream above and below. */}
-      <div className="overflow-hidden rounded-hero border border-line bg-[#f4efe7]">
+      <div className="relative overflow-hidden rounded-hero border border-line bg-[#f4efe7]">
+        {/* Zoom sits in the panel's own corner. It's opaque and above the
+            drawing, so a node passing under it stays readable. */}
+        <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full border border-line bg-cream/95 px-1 py-1 shadow-sm backdrop-blur">
+          <button
+            onClick={() => {
+              const nz = Math.max(1, +(zoom - 0.5).toFixed(1));
+              setZoom(nz);
+              if (nz === 1) setPan({ x: 0, y: 0 });
+            }}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-ink-soft hover:bg-sand"
+            aria-label="Zoom out"
+          >
+            −
+          </button>
+          <button
+            onClick={() => {
+              setZoom(1);
+              setPan({ x: 0, y: 0 });
+            }}
+            className="px-2 text-xs font-medium text-muted hover:text-ink"
+          >
+            Fit
+          </button>
+          <button
+            onClick={() => setZoom(Math.min(4, +(zoom + 0.5).toFixed(1)))}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-ink-soft hover:bg-sand"
+            aria-label="Zoom in"
+          >
+            +
+          </button>
+        </div>
         <svg
           viewBox={viewBox}
           preserveAspectRatio="xMidYMid meet"

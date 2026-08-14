@@ -136,35 +136,17 @@ export default function GroupsPage() {
           ))}
         </div>
         {view === 'map' && (
-          <div className="flex shrink-0 items-center gap-1 rounded-full border border-line bg-surface px-1 py-1">
-            <button
-              onClick={() => {
-                const nz = Math.max(1, +(zoom - 0.5).toFixed(1));
-                setZoom(nz);
-                if (nz === 1) setPan({ x: 0, y: 0 });
-              }}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-ink-soft hover:bg-sand"
-              aria-label="Zoom out"
-            >
-              −
-            </button>
-            <button
-              onClick={() => {
-                setZoom(1);
-                setPan({ x: 0, y: 0 });
-              }}
-              className="px-2 text-xs font-medium text-muted hover:text-ink"
-            >
-              Fit
-            </button>
-            <button
-              onClick={() => setZoom(Math.min(4, +(zoom + 0.5).toFixed(1)))}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-ink-soft hover:bg-sand"
-              aria-label="Zoom in"
-            >
-              +
-            </button>
-          </div>
+          <label className="flex shrink-0 items-center gap-2 text-sm text-ink-soft">
+            <input
+              type="checkbox"
+              checked={showMentorRing}
+              onChange={(e) => setShowMentorRing(e.target.checked)}
+              // Olive matches the mentor ring this toggles, instead of the
+              // browser's default blue.
+              className="h-4 w-4 accent-olive"
+            />
+            Mentors
+          </label>
         )}
       </div>
 
@@ -281,19 +263,6 @@ export default function GroupsPage() {
         {/* The network hierarchy */}
         {view === 'map' && data && (
           <>
-            <div className="mb-3 flex items-center justify-end">
-              <label className="flex shrink-0 items-center gap-2 text-sm text-ink-soft">
-                <input
-                  type="checkbox"
-                  checked={showMentorRing}
-                  onChange={(e) => setShowMentorRing(e.target.checked)}
-                  // Olive matches the mentor ring this toggles, instead of the
-                  // browser's default blue.
-                  className="h-4 w-4 accent-olive"
-                />
-                Mentors
-              </label>
-            </div>
             <div className="md:mx-[calc(50%-50vw)] md:w-screen md:px-6">
               <HierarchyGraph
                 hierarchy={data}
