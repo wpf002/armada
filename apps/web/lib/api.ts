@@ -68,7 +68,7 @@ export interface Profile {
   heardAboutUs?: string | null;
   lookingFor?: string | null;
   groups?: GroupRef[];
-  interests?: Array<{ type: string; status: string }>;
+  interests?: Array<{ id: string; type: string; status: string }>;
   hasMentor?: boolean;
   /** Leaders who disciple(d) them — `current: false` means it's completed.
    *  Not the same as a mentor. */

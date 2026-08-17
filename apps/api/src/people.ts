@@ -191,7 +191,9 @@ export function registerPeopleRoutes(app: FastifyInstance) {
     // (leading, being discipled, or looking to be placed).
     const interests = await prisma.interest.findMany({
       where: { personId: id, status: { in: ['OPEN', 'IN_PROGRESS'] } },
-      select: { type: true, status: true },
+      // The id travels with it so an admin can take the person back off the
+      // discipleship queue from this profile.
+      select: { id: true, type: true, status: true },
     });
     // Two DIFFERENT relationships, deliberately kept apart:
     //

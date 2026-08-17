@@ -84,7 +84,10 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
 
   const leads = (person.groups ?? []).some((g) => g.role !== 'DISCIPLE');
   const inGroup = (person.groups ?? []).some((g) => g.role === 'DISCIPLE');
-  const wantsDiscipleship = (person.interests ?? []).some((i) => i.type === 'WANTS_DISCIPLESHIP');
+  const discipleshipInterest = (person.interests ?? []).find(
+    (i) => i.type === 'WANTS_DISCIPLESHIP',
+  );
+  const wantsDiscipleship = Boolean(discipleshipInterest);
   const wantsToLead = (person.interests ?? []).some((i) => i.type === 'WANTS_TO_LEAD');
 
   const details: Array<[string, string | null | undefined]> = [
@@ -209,6 +212,19 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
           onChanged={reload}
         />
       ))}
+
+      {/* The discipleship queue is a vetted, hand-curated list, so putting
+          someone on it or taking them off has to be possible from the person —
+          the board itself can only ever remove. */}
+      {isAdmin && (
+        <QueueEditor
+          personId={id}
+          name={personDisplayName(person)}
+          interestId={discipleshipInterest?.id ?? null}
+          leads={leads}
+          onChanged={reload}
+        />
+      )}
 
       {/* Details — read-only rows, or the same rows as inputs while editing.
           Editing happens in place here; there is no second panel below. */}
@@ -656,6 +672,113 @@ function MentorEditor({
         busy={busy}
         onConfirm={clear}
         onCancel={() => setConfirmClear(false)}
+      />
+    </section>
+  );
+}
+
+/**
+ * Puts a person on, or takes them off, the "Wants To Be Discipled" board.
+ *
+ * Removal marks the interest DECLINED rather than deleting it (invariant #2),
+ * which also leaves the door open to adding them back later — the POST only
+ * refuses when an OPEN or IN_PROGRESS interest already exists.
+ */
+function QueueEditor({
+  personId,
+  name,
+  interestId,
+  leads,
+  onChanged,
+}: {
+  personId: string;
+  name: string;
+  interestId: string | null;
+  leads: boolean;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function add() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api('/interests', {
+        method: 'POST',
+        body: JSON.stringify({ personId, type: 'WANTS_DISCIPLESHIP' }),
+      });
+      onChanged();
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!interestId) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await api(`/interests/${interestId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'DECLINED' }),
+      });
+      setConfirming(false);
+      onChanged();
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mt-6">
+      <p className="eyebrow mb-2">Discipleship Queue</p>
+      <div className="rounded-card border border-dashed border-line px-4 py-4">
+        {interestId ? (
+          <>
+            <p className="text-sm text-muted">
+              {name} is on the Wants To Be Discipled board.
+              {leads && ' They already lead a group, which usually means they belong off it.'}
+            </p>
+            <button
+              onClick={() => setConfirming(true)}
+              disabled={busy}
+              className="mt-3 h-10 rounded-full border border-line px-4 text-sm text-ink disabled:opacity-50"
+            >
+              Take Off The Queue
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-muted">
+              {name} isn&apos;t on the Wants To Be Discipled board. Add them once you&apos;ve
+              confirmed they&apos;re actually waiting to be placed.
+            </p>
+            <button
+              onClick={add}
+              disabled={busy}
+              className="btn-olive mt-3 h-10 min-h-0 px-4 text-sm disabled:opacity-50"
+            >
+              {busy ? 'Adding…' : 'Add To The Queue'}
+            </button>
+          </>
+        )}
+        {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
+      </div>
+
+      <ConfirmDialog
+        open={confirming}
+        title={`Take ${name} off the queue?`}
+        message={`${name} will no longer show on the Wants To Be Discipled board.`}
+        confirmLabel="Take Off"
+        busy={busy}
+        onConfirm={remove}
+        onCancel={() => setConfirming(false)}
       />
     </section>
   );
