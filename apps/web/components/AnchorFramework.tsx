@@ -1,7 +1,7 @@
 /**
  * The A.N.C.H.O.R. Discipleship Framework, transcribed verbatim from Armada's
  * printed one-pager — six anchors, each with its scripture references, three
- * practices, and a closing takeaway, then the mission statement.
+ * practices, and a closing takeaway.
  *
  * Designed at 375px first: a fixed letter column beside a fluid text column,
  * scaling up at `sm:`. The app shell caps content at max-w-2xl, so this stays
@@ -22,10 +22,6 @@ export function AnchorFramework() {
           <AnchorCard key={a.letter} {...a} />
         ))}
       </div>
-
-      <p className="mt-4 rounded-card bg-sand px-4 py-4 text-[12.5px] font-bold uppercase leading-[1.7] tracking-[0.05em] text-deep sm:px-5 sm:text-[13px]">
-        {MISSION}
-      </p>
     </>
   );
 }
@@ -111,9 +107,6 @@ const ANCHORS: AnchorPoint[] = [
     summary: 'God calls us to share the hope we have and make disciples who make disciples.',
   },
 ];
-
-const MISSION =
-  'Our mission is to respond to Jesus’ last commandment to his disciples (Matthew 28:18-20) – to not only share the truth of the gospel but share our lives with one another, equipping and encouraging faithful men who will go on to disciple others.';
 
 function AnchorCard({ letter, title, refs, points, summary }: AnchorPoint) {
   return (
