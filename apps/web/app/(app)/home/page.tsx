@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { Anchor } from '@/components/Anchor';
+import { AnchorFramework } from '@/components/AnchorFramework';
 
 interface EventItem {
   id: string;
@@ -118,44 +119,15 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* What Armada is */}
+      {/* What Armada is — the A.N.C.H.O.R. framework, verbatim from the printed
+          one-pager. Content is data so the markup stays one card template. */}
       <section>
-        <p className="eyebrow mb-2">How It Works</p>
-        <div className="card divide-y divide-line">
-          <Step
-            n="01"
-            title="Gather"
-            body="Armada Night, the first Monday of each month at Communion Coffee."
-          />
-          <Step n="02" title="Get Placed" title2 body="Join a discipleship group led by faithful men." />
-          <Step n="03" title="Be Discipled" body="Walk with a leader who is themselves mentored." />
-          <Step n="04" title="Lead" body="Go and make disciples." />
-        </div>
+        <AnchorFramework />
+
         <Link href="/pipeline" className="btn-olive mt-4 w-full">
           I Want To Be Discipled
         </Link>
       </section>
-    </div>
-  );
-}
-
-function Step({
-  n,
-  title,
-  body,
-}: {
-  n: string;
-  title: string;
-  title2?: boolean;
-  body: string;
-}) {
-  return (
-    <div className="flex gap-4 px-4 py-4">
-      <span className="font-slab text-sm font-bold text-olive">{n}</span>
-      <span className="min-w-0">
-        <span className="block font-medium text-ink">{title}</span>
-        <span className="block text-sm text-muted">{body}</span>
-      </span>
     </div>
   );
 }
