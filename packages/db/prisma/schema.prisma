@@ -290,6 +290,11 @@ model FilloutForm {
   filloutFormId String    @id
   archived      Boolean   @default(false)
   archivedAt    DateTime?
+  /// The link to actually send people. Fillout has no single URL shape — a
+  /// regular form lives at forms.fillout.com/t/<id>, a Zite doc at
+  /// <id>.zite.so — and the API reveals neither, so the real link is pasted
+  /// in and stored here. Null falls back to the forms.fillout.com guess.
+  shareUrl      String?
   updatedAt     DateTime  @updatedAt
 }
 

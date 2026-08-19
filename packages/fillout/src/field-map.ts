@@ -21,10 +21,11 @@ export const EXCLUDED_FORM_IDS: string[] = [
   'ad2d2cac8f24287c', // Armada RSVP
   '0890e63fe3fdccdb', // Game Registrations
   'cRwtcM5Xuuus', // Theology Thursday Topics Survey
-  // Armada Questionnaire (f17fc07cee587f15) and Onboarding Registration
-  // (1pfygtjnhc) are listed on purpose: the team sends both, so they belong on
-  // the forms page even though neither feeds the intake pipeline. Retire one
-  // with the Archive control rather than by adding it back here.
+  'f17fc07cee587f15', // Armada Questionnaire — retired; never published
+  // Onboarding Registration (1pfygtjnhc) is listed on purpose: the team sends
+  // it, so it belongs on the forms page even though it doesn't feed the intake
+  // pipeline. Retire a form with the Archive control rather than by adding it
+  // here — this list is for forms Armada should never see.
 ];
 
 /** Target person/intake field an answer maps to. */

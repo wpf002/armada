@@ -266,8 +266,10 @@ export function registerFilloutRoutes(app: FastifyInstance) {
       _count: { _all: true },
     });
     const countMap = new Map(counts.map((c) => [c.filloutFormId, c._count._all]));
-    const settings = await prisma.filloutForm.findMany({ select: { filloutFormId: true, archived: true } });
-    const archivedIds = new Set(settings.filter((s) => s.archived).map((s) => s.filloutFormId));
+    const settings = await prisma.filloutForm.findMany({
+      select: { filloutFormId: true, archived: true, shareUrl: true },
+    });
+    const settingMap = new Map(settings.map((s) => [s.filloutFormId, s]));
 
     if (!apiKey) {
       return {
@@ -277,8 +279,8 @@ export function registerFilloutRoutes(app: FastifyInstance) {
           isPublished: true,
           count,
           readable: true,
-          shareUrl: filloutShareUrl(formId),
-          archived: archivedIds.has(formId),
+          shareUrl: settingMap.get(formId)?.shareUrl ?? filloutShareUrl(formId),
+          archived: settingMap.get(formId)?.archived ?? false,
         })),
       };
     }
@@ -301,10 +303,11 @@ export function registerFilloutRoutes(app: FastifyInstance) {
         // Fillout's REST API can't read some older forms (it returns
         // "Could not find flow snapshot"), so we hold nothing for them.
         readable: count > 0,
-        // Only a published form has a link worth sending; a draft's public URL
-        // 404s. Fillout exposes no URL of its own, so we build the standard one.
-        shareUrl: isPublished ? filloutShareUrl(formId) : null,
-        archived: archivedIds.has(formId),
+        // A pasted link always wins: Fillout has no single URL shape, so the
+        // built one is only a good guess for a regular published form and is
+        // simply wrong for a Zite document.
+        shareUrl: settingMap.get(formId)?.shareUrl ?? (isPublished ? filloutShareUrl(formId) : null),
+        archived: settingMap.get(formId)?.archived ?? false,
       };
     });
     forms.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
@@ -314,24 +317,33 @@ export function registerFilloutRoutes(app: FastifyInstance) {
   // --- Retire a form that has outlived its event (or bring it back) ---
   app.patch('/registrations/forms/:formId', { preHandler: requireRole('ADMIN') }, async (request) => {
     const { formId } = z.object({ formId: z.string().min(1) }).parse(request.params);
-    const { archived } = z.object({ archived: z.boolean() }).parse(request.body);
+    const body = z
+      .object({
+        archived: z.boolean().optional(),
+        // Empty string clears the override and restores the built-in guess.
+        shareUrl: z.union([z.string().url(), z.literal('')]).nullish(),
+      })
+      .parse(request.body);
     const before = await prisma.filloutForm.findUnique({ where: { filloutFormId: formId } });
+    const archived = body.archived ?? before?.archived ?? false;
+    const shareUrl =
+      body.shareUrl === undefined ? (before?.shareUrl ?? null) : body.shareUrl || null;
     const row = await prisma.filloutForm.upsert({
       where: { filloutFormId: formId },
-      update: { archived, archivedAt: archived ? new Date() : null },
-      create: { filloutFormId: formId, archived, archivedAt: archived ? new Date() : null },
+      update: { archived, archivedAt: archived ? new Date() : null, shareUrl },
+      create: { filloutFormId: formId, archived, archivedAt: archived ? new Date() : null, shareUrl },
     });
     await prisma.auditLog.create({
       data: {
         actorId: request.authedUser?.personId ?? null,
-        action: archived ? 'form.archive' : 'form.unarchive',
+        action: body.archived === undefined ? 'form.setLink' : archived ? 'form.archive' : 'form.unarchive',
         entity: 'FilloutForm',
         entityId: formId,
         before: (before ?? { archived: false }) as object,
         after: row as object,
       },
     });
-    return { ok: true, archived: row.archived };
+    return { ok: true, archived: row.archived, shareUrl: row.shareUrl };
   });
 
   // --- Is the live Fillout form actually wired up? ---

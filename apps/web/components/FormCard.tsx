@@ -29,6 +29,9 @@ export function FormCard({
 }) {
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(f.shareUrl ?? '');
+  const [err, setErr] = useState<string | null>(null);
 
   async function copy() {
     if (!f.shareUrl) return;
@@ -39,6 +42,23 @@ export function FormCard({
     } catch {
       // Clipboard is blocked outside a secure context; the link is still
       // reachable through Open, so fail quietly rather than alarming anyone.
+    }
+  }
+
+  async function saveLink() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api(`/registrations/forms/${f.formId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ shareUrl: draft.trim() }),
+      });
+      setEditing(false);
+      onArchived();
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -93,8 +113,17 @@ export function FormCard({
             </a>
           </>
         ) : (
-          <span className="text-[13px] text-muted">Not published — no link to share</span>
+          <span className="text-[13px] text-muted">No link yet</span>
         )}
+        <button
+          onClick={() => {
+            setDraft(f.shareUrl ?? '');
+            setEditing((v) => !v);
+          }}
+          className="h-8 rounded-full px-3 text-[13px] text-muted transition-colors hover:bg-sand"
+        >
+          {f.shareUrl ? 'Edit Link' : 'Set Link'}
+        </button>
         <button
           onClick={toggleArchive}
           disabled={busy}
@@ -103,6 +132,43 @@ export function FormCard({
           {f.archived ? 'Unarchive' : 'Archive'}
         </button>
       </div>
+
+      {editing && (
+        <div className="border-t border-line px-4 py-3">
+          <label className="eyebrow" htmlFor={`link-${f.formId}`}>
+            Public Link
+          </label>
+          <input
+            id={`link-${f.formId}`}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="https://…"
+            inputMode="url"
+            autoComplete="off"
+            className="mt-1.5 w-full rounded-full border border-line bg-cream/50 px-4 py-2 text-sm text-ink outline-none focus:border-olive"
+          />
+          <p className="mt-1.5 text-xs text-muted">
+            Paste the link people should open. Leave it empty to fall back to the default
+            Fillout address.
+          </p>
+          {err && <p className="mt-1.5 text-xs text-red-600">{err}</p>}
+          <div className="mt-2.5 flex gap-2">
+            <button
+              onClick={saveLink}
+              disabled={busy}
+              className="btn-olive h-9 min-h-0 px-4 text-sm disabled:opacity-50"
+            >
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={() => setEditing(false)}
+              className="h-9 rounded-full border border-line px-4 text-sm text-ink"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
