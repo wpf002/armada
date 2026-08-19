@@ -15,6 +15,17 @@ import {
 
 const WEBHOOK_SECRET = process.env.FILLOUT_WEBHOOK_SECRET ?? 'change-me';
 
+/**
+ * Fillout's API returns no public URL for a form, so build the canonical one.
+ * Verified against the live account: a published form resolves, a draft 404s,
+ * and a form Fillout itself can no longer render 500s with "Could not find
+ * flow snapshot" — which is why the UI treats a link as best-effort.
+ */
+function filloutShareUrl(formId: string): string {
+  return `https://forms.fillout.com/t/${formId}`;
+}
+
+
 function secretOk(request: FastifyRequest): boolean {
   const header = request.headers['x-armada-secret'];
   const query = (request.query as { secret?: string })?.secret;
@@ -255,6 +266,8 @@ export function registerFilloutRoutes(app: FastifyInstance) {
       _count: { _all: true },
     });
     const countMap = new Map(counts.map((c) => [c.filloutFormId, c._count._all]));
+    const settings = await prisma.filloutForm.findMany({ select: { filloutFormId: true, archived: true } });
+    const archivedIds = new Set(settings.filter((s) => s.archived).map((s) => s.filloutFormId));
 
     if (!apiKey) {
       return {
@@ -264,6 +277,8 @@ export function registerFilloutRoutes(app: FastifyInstance) {
           isPublished: true,
           count,
           readable: true,
+          shareUrl: filloutShareUrl(formId),
+          archived: archivedIds.has(formId),
         })),
       };
     }
@@ -277,18 +292,46 @@ export function registerFilloutRoutes(app: FastifyInstance) {
       .map((f) => {
       const formId = String(f.formId ?? f.id ?? '');
       const count = countMap.get(formId) ?? 0;
+      const isPublished = Boolean(f.isPublished);
       return {
         formId,
         name: String(f.name ?? formId),
-        isPublished: Boolean(f.isPublished),
+        isPublished,
         count,
         // Fillout's REST API can't read some older forms (it returns
         // "Could not find flow snapshot"), so we hold nothing for them.
         readable: count > 0,
+        // Only a published form has a link worth sending; a draft's public URL
+        // 404s. Fillout exposes no URL of its own, so we build the standard one.
+        shareUrl: isPublished ? filloutShareUrl(formId) : null,
+        archived: archivedIds.has(formId),
       };
     });
     forms.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
     return { forms };
+  });
+
+  // --- Retire a form that has outlived its event (or bring it back) ---
+  app.patch('/registrations/forms/:formId', { preHandler: requireRole('ADMIN') }, async (request) => {
+    const { formId } = z.object({ formId: z.string().min(1) }).parse(request.params);
+    const { archived } = z.object({ archived: z.boolean() }).parse(request.body);
+    const before = await prisma.filloutForm.findUnique({ where: { filloutFormId: formId } });
+    const row = await prisma.filloutForm.upsert({
+      where: { filloutFormId: formId },
+      update: { archived, archivedAt: archived ? new Date() : null },
+      create: { filloutFormId: formId, archived, archivedAt: archived ? new Date() : null },
+    });
+    await prisma.auditLog.create({
+      data: {
+        actorId: request.authedUser?.personId ?? null,
+        action: archived ? 'form.archive' : 'form.unarchive',
+        entity: 'FilloutForm',
+        entityId: formId,
+        before: (before ?? { archived: false }) as object,
+        after: row as object,
+      },
+    });
+    return { ok: true, archived: row.archived };
   });
 
   // --- Is the live Fillout form actually wired up? ---

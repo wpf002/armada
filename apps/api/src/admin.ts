@@ -10,7 +10,12 @@ import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '@armada/db';
-import { deriveGroupDisplayName, visibleFieldsFor, type PersonField } from '@armada/shared';
+import {
+  deriveGroupDisplayName,
+  UNRESOLVED_INTEREST_STATUSES,
+  visibleFieldsFor,
+  type PersonField,
+} from '@armada/shared';
 import { auth } from './auth';
 import { requireRole } from './session';
 import { buildViewer } from './people';
@@ -162,7 +167,7 @@ export function registerAdminRoutes(app: FastifyInstance) {
       data: { endedAt: now },
     });
     await prisma.interest.updateMany({
-      where: { personId: id, status: { in: ['OPEN', 'IN_PROGRESS'] } },
+      where: { personId: id, status: { in: [...UNRESOLVED_INTEREST_STATUSES] } },
       data: { status: 'DECLINED', resolvedAt: now },
     });
     await prisma.person.update({ where: { id }, data: { status: 'REMOVED' } });

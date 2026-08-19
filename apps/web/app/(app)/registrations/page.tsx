@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { FormCard, type FormRow } from '@/components/FormCard';
 import { useSession } from '@/lib/auth-client';
 import type { SessionUser } from '@/lib/auth-client';
 
@@ -26,13 +27,6 @@ interface Registrant {
   church: string | null;
   lookingFor: string | null;
   candidates: Candidate[];
-}
-interface FormRow {
-  formId: string;
-  name: string;
-  isPublished: boolean;
-  count: number;
-  readable: boolean;
 }
 
 export default function RegistrationsPage() {
@@ -63,35 +57,37 @@ export default function RegistrationsPage() {
 
   // ---- Form picker ----
   if (!selected) {
+    const live = forms.filter((f) => !f.archived);
+    const archived = forms.filter((f) => f.archived);
     return (
       <div className="px-4 pt-5">
         <p className="eyebrow">Fillout</p>
         <h1 className="display text-[26px]">Registration Forms</h1>
+        <p className="mt-1 text-sm text-muted">
+          Open a form to read its responses, or copy its link to send.
+        </p>
 
         <div className="mt-5 flex flex-col gap-2.5">
-          {forms.map((f) => (
-            <button
-              key={f.formId}
-              onClick={() => setSelected(f)}
-              className="flex min-h-[64px] items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-3 text-left transition-colors hover:bg-sand/50"
-            >
-              <span className="min-w-0">
-                <span className="block truncate font-medium text-ink">{f.name}</span>
-                <span className="block text-sm text-muted">
-                  {f.count > 0
-                    ? `${f.count} Submission${f.count === 1 ? '' : 's'}`
-                    : f.isPublished
-                      ? 'No Responses Retrieved'
-                      : 'Draft'}
-                </span>
-              </span>
-              <span className="shrink-0 text-muted">›</span>
-            </button>
+          {live.map((f) => (
+            <FormCard key={f.formId} f={f} onOpen={() => setSelected(f)} onArchived={load} />
           ))}
-          {forms.length === 0 && (
+          {live.length === 0 && (
             <p className="card px-4 py-6 text-center text-sm text-muted">No Forms Found.</p>
           )}
         </div>
+
+        {archived.length > 0 && (
+          <details className="mt-6">
+            <summary className="cursor-pointer list-none">
+              <span className="eyebrow">Archived · {archived.length}</span>
+            </summary>
+            <div className="mt-2.5 flex flex-col gap-2.5 opacity-70">
+              {archived.map((f) => (
+                <FormCard key={f.formId} f={f} onOpen={() => setSelected(f)} onArchived={load} />
+              ))}
+            </div>
+          </details>
+        )}
       </div>
     );
   }

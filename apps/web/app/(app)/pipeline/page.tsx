@@ -6,21 +6,17 @@ import { api } from '@/lib/api';
 import { useSession } from '@/lib/auth-client';
 import type { SessionUser } from '@/lib/auth-client';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { INTEREST_STAGES, type InterestStage } from '@armada/shared';
 
 interface Interest {
   id: string;
-  status: 'OPEN' | 'IN_PROGRESS' | 'PLACED' | 'DECLINED';
+  status: InterestStage | 'DECLINED';
   notes: string | null;
   person: { id: string; name: string };
   assignedGroup: { id: string; displayName: string } | null;
 }
 
-const STAGES: Array<{ key: Interest['status']; label: string }> = [
-  { key: 'OPEN', label: 'Open' },
-  // The stored status stays IN_PROGRESS; Armada calls this stage Onboarding.
-  { key: 'IN_PROGRESS', label: 'Onboarding' },
-  { key: 'PLACED', label: 'Placed' },
-];
+const STAGES = INTEREST_STAGES;
 
 export default function PipelinePage() {
   const { data: session } = useSession();
@@ -28,11 +24,11 @@ export default function PipelinePage() {
   const [items, setItems] = useState<Interest[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
-  const [overStage, setOverStage] = useState<Interest['status'] | null>(null);
+  const [overStage, setOverStage] = useState<InterestStage | null>(null);
   const [removing, setRemoving] = useState<Interest | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
   /** Live bounds of each stage column, for hit-testing a finger drag. */
-  const stageRefs = useRef(new Map<Interest['status'], HTMLElement>());
+  const stageRefs = useRef(new Map<InterestStage, HTMLElement>());
 
   const load = useCallback(() => {
     if (!isAdmin) return;
@@ -42,7 +38,7 @@ export default function PipelinePage() {
   }, [isAdmin]);
   useEffect(() => load(), [load]);
 
-  async function move(id: string, status: Interest['status']) {
+  async function move(id: string, status: InterestStage) {
     setBusy(id);
     try {
       await api(`/interests/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
@@ -66,7 +62,7 @@ export default function PipelinePage() {
   const pressRef = useRef<{ id: string; x: number; y: number; timer: number } | null>(null);
   const draggingRef = useRef(false);
 
-  function stageAt(x: number, y: number): Interest['status'] | null {
+  function stageAt(x: number, y: number): InterestStage | null {
     for (const [key, el] of stageRefs.current) {
       const r = el.getBoundingClientRect();
       if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return key;

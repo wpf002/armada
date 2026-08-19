@@ -15,6 +15,7 @@ import { resolve as resolvePath } from 'node:path';
 import { homedir } from 'node:os';
 import ExcelJS from 'exceljs';
 import type { MaritalStatus } from '../../generated/client';
+import { UNRESOLVED_INTEREST_STATUSES } from '@armada/shared';
 import { prisma } from '../index';
 import {
   canonicalDisplayName,
@@ -271,7 +272,7 @@ async function ensureInterest(
   notes?: string | null,
 ): Promise<void> {
   const existing = await prisma.interest.findFirst({
-    where: { personId, type, status: { in: ['OPEN', 'IN_PROGRESS'] } },
+    where: { personId, type, status: { in: [...UNRESOLVED_INTEREST_STATUSES] } },
   });
   if (existing) return;
   await prisma.interest.create({

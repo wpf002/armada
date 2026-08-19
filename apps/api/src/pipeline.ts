@@ -11,7 +11,12 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma, type GroupRole } from '@armada/db';
-import { deriveGroupDisplayName } from '@armada/shared';
+import {
+  deriveGroupDisplayName,
+  INTEREST_STATUSES,
+  RESOLVED_INTEREST_STATUSES,
+  UNRESOLVED_INTEREST_STATUSES,
+} from '@armada/shared';
 import { requireAuth, requireRole } from './session';
 import { buildViewer } from './people';
 
@@ -89,7 +94,7 @@ export function registerPipelineRoutes(app: FastifyInstance) {
     const { type, status } = z
       .object({
         type: z.enum(['WANTS_DISCIPLESHIP', 'WANTS_TO_LEAD', 'WANTS_MENTOR']).optional(),
-        status: z.enum(['OPEN', 'IN_PROGRESS', 'PLACED', 'DECLINED']).optional(),
+        status: z.enum(INTEREST_STATUSES).optional(),
       })
       .parse(request.query);
     const rows = await prisma.interest.findMany({
@@ -135,7 +140,7 @@ export function registerPipelineRoutes(app: FastifyInstance) {
       })
       .parse(request.body);
     const existing = await prisma.interest.findFirst({
-      where: { personId: body.personId, type: body.type, status: { in: ['OPEN', 'IN_PROGRESS'] } },
+      where: { personId: body.personId, type: body.type, status: { in: [...UNRESOLVED_INTEREST_STATUSES] } },
     });
     if (existing) return { ok: true, id: existing.id };
     const i = await prisma.interest.create({ data: { ...body, status: 'OPEN' } });
@@ -150,14 +155,19 @@ export function registerPipelineRoutes(app: FastifyInstance) {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const body = z
       .object({
-        status: z.enum(['OPEN', 'IN_PROGRESS', 'PLACED', 'DECLINED']).optional(),
+        status: z.enum(INTEREST_STATUSES).optional(),
         assignedGroupId: z.string().uuid().nullable().optional(),
         notes: z.string().nullable().optional(),
       })
       .parse(request.body);
     const before = await prisma.interest.findUnique({ where: { id } });
     if (!before) return reply.status(404).send({ error: 'not found' });
-    const resolvedAt = body.status === 'PLACED' || body.status === 'DECLINED' ? new Date() : undefined;
+    // Onboarded is a waypoint, not an ending — only PLACED/DECLINED resolve.
+    const resolvedAt = RESOLVED_INTEREST_STATUSES.includes(
+      body.status as (typeof RESOLVED_INTEREST_STATUSES)[number],
+    )
+      ? new Date()
+      : undefined;
     const i = await prisma.interest.update({ where: { id }, data: { ...body, resolvedAt } });
     await prisma.auditLog.create({
       data: { actorId: viewer.personId, action: 'interest.update', entity: 'Interest', entityId: id, before, after: i },
@@ -256,7 +266,9 @@ export function registerPipelineRoutes(app: FastifyInstance) {
     // Admin view: the actionable gaps.
     const staleCutoff = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000);
     const [wantsDiscipleship, staleFollowUps, unassignedPeople] = await Promise.all([
-      prisma.interest.count({ where: { type: 'WANTS_DISCIPLESHIP', status: { in: ['OPEN', 'IN_PROGRESS'] } } }),
+      prisma.interest.count({
+        where: { type: 'WANTS_DISCIPLESHIP', status: { in: [...UNRESOLVED_INTEREST_STATUSES] } },
+      }),
       // Stale = still pending and either overdue or never assigned an owner.
       prisma.followUp.count({
         where: { status: 'PENDING', OR: [{ dueAt: { lt: staleCutoff } }, { ownerId: null }] },
@@ -316,7 +328,7 @@ export function registerPipelineRoutes(app: FastifyInstance) {
         status: { in: ['ACTIVE', 'PROSPECT'] },
         mergedIntoId: null,
         memberships: { none: { leftAt: null } },
-        interests: { none: { status: { in: ['OPEN', 'IN_PROGRESS'] } } },
+        interests: { none: { status: { in: [...UNRESOLVED_INTEREST_STATUSES] } } },
         mentorEdgesAsMentor: { none: { endedAt: null } },
         mentorEdgesAsMentee: { none: { endedAt: null } },
       },

@@ -245,9 +245,13 @@ enum InterestType {
   WANTS_MENTOR
 }
 
+// Board order: OPEN -> IN_PROGRESS ("Onboarding") -> ONBOARDED -> PLACED.
+// ONBOARDED means they finished Onboarding but aren't in a group yet — the
+// stage where someone is most likely to fall through the cracks.
 enum InterestStatus {
   OPEN
   IN_PROGRESS
+  ONBOARDED
   PLACED
   DECLINED
 }
@@ -276,6 +280,18 @@ enum FollowUpStatus {
 }
 
 // ---------- Fillout ----------
+
+/**
+ * Per-form settings we keep on our side. Fillout's API returns only name and
+ * published state — it has no notion of a deadline or an archive — so a form
+ * that has outlived its event is retired here rather than in Fillout.
+ */
+model FilloutForm {
+  filloutFormId String    @id
+  archived      Boolean   @default(false)
+  archivedAt    DateTime?
+  updatedAt     DateTime  @updatedAt
+}
 
 model FormSubmission {
   id                  String       @id @default(uuid())

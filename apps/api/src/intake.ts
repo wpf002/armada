@@ -18,6 +18,10 @@ import {
   splitName,
   FILLOUT_FORM_ID,
 } from '@armada/fillout';
+import {
+  EXISTING_INTEREST_STATUSES,
+  UNRESOLVED_INTEREST_STATUSES,
+} from '@armada/shared';
 
 // --- Parsing ---------------------------------------------------------------
 
@@ -181,7 +185,7 @@ async function attachSideEffects(personId: string, parsed: ParsedRegistrant) {
   // §7 heuristic: mentions of leading/discipling others raise WANTS_TO_LEAD.
   if (parsed.lookingFor && /\b(lead|leading|discipl(e|ing) others|pour into|mentor others)\b/i.test(parsed.lookingFor)) {
     const exists = await prisma.interest.findFirst({
-      where: { personId, type: 'WANTS_TO_LEAD', status: { in: ['OPEN', 'IN_PROGRESS'] } },
+      where: { personId, type: 'WANTS_TO_LEAD', status: { in: [...UNRESOLVED_INTEREST_STATUSES] } },
     });
     if (!exists) await prisma.interest.create({ data: { personId, type: 'WANTS_TO_LEAD', status: 'OPEN' } });
   }
@@ -199,7 +203,7 @@ async function ensureDiscipleshipInterest(personId: string) {
     where: {
       personId,
       type: 'WANTS_DISCIPLESHIP',
-      status: { in: ['OPEN', 'IN_PROGRESS', 'PLACED'] },
+      status: { in: [...EXISTING_INTEREST_STATUSES] },
     },
   });
   if (!exists) {

@@ -17,6 +17,7 @@ import { prisma, type GroupRole } from '@armada/db';
 import {
   can,
   deriveGroupDisplayName,
+  UNRESOLVED_INTEREST_STATUSES,
   visibleFieldsFor,
   type PersonField,
   type SubjectContext,
@@ -190,7 +191,7 @@ export function registerPeopleRoutes(app: FastifyInstance) {
     // Open discipleship intents, so the profile can show where they stand
     // (leading, being discipled, or looking to be placed).
     const interests = await prisma.interest.findMany({
-      where: { personId: id, status: { in: ['OPEN', 'IN_PROGRESS'] } },
+      where: { personId: id, status: { in: [...UNRESOLVED_INTEREST_STATUSES] } },
       // The id travels with it so an admin can take the person back off the
       // discipleship queue from this profile.
       select: { id: true, type: true, status: true },
