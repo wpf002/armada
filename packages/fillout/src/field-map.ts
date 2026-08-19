@@ -18,11 +18,13 @@ export const FILLOUT_FORM_ID = 'dHqhm2ovxQus';
  */
 export const EXCLUDED_FORM_IDS: string[] = [
   '235F46mjfous', // 4/14 Master Class Signup — one-time event
-  'f17fc07cee587f15', // Armada Questionnaire
   'ad2d2cac8f24287c', // Armada RSVP
   '0890e63fe3fdccdb', // Game Registrations
-  '1pfygtjnhc', // Onboarding Registration
   'cRwtcM5Xuuus', // Theology Thursday Topics Survey
+  // Armada Questionnaire (f17fc07cee587f15) and Onboarding Registration
+  // (1pfygtjnhc) are listed on purpose: the team sends both, so they belong on
+  // the forms page even though neither feeds the intake pipeline. Retire one
+  // with the Archive control rather than by adding it back here.
 ];
 
 /** Target person/intake field an answer maps to. */
