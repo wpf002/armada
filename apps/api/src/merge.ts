@@ -108,11 +108,17 @@ export async function mergePeople(actorId: string | null, sourceId: string, into
     for (const f of ENRICHABLE) {
       if (target[f] == null && source[f] != null) enrich[f] = source[f];
     }
+    // Free the source email FIRST. Person.email is unique, so copying it onto
+    // the target while the source still holds it fails with P2002 — which is
+    // precisely the common case: the duplicate record carries the email and the
+    // surviving one doesn't.
+    if (source.email != null) {
+      await tx.person.update({ where: { id: sourceId }, data: { email: null } });
+    }
     if (Object.keys(enrich).length > 0) {
       await tx.person.update({ where: { id: intoId }, data: enrich });
     }
 
-    // Free the source email so the unique constraint doesn't block the tombstone.
     const merged = await tx.person.update({
       where: { id: sourceId },
       data: { mergedIntoId: intoId, status: 'REMOVED', email: null },
