@@ -122,11 +122,11 @@ export default function HomePage() {
       {/* What Armada is — the A.N.C.H.O.R. framework, verbatim from the printed
           one-pager. Content is data so the markup stays one card template. */}
       <section>
-        <AnchorFramework />
-
-        <Link href="/pipeline" className="btn-olive mt-4 w-full">
+        <Link href="/pipeline" className="btn-olive mb-6 w-full">
           I Want To Be Discipled
         </Link>
+
+        <AnchorFramework />
       </section>
     </div>
   );
