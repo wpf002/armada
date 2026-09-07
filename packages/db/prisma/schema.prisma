@@ -245,12 +245,17 @@ enum InterestType {
   WANTS_MENTOR
 }
 
-// Board order: OPEN -> IN_PROGRESS ("Onboarding") -> ONBOARDED -> PLACED.
-// ONBOARDED means they finished Onboarding but aren't in a group yet — the
-// stage where someone is most likely to fall through the cracks.
+// Armada's five discipleship steps. The first four names are historical — the
+// board's labels live in packages/shared, so read those, not these:
+//   OPEN                 -> Filled Out Armada Registration
+//   IN_PROGRESS          -> Met With Scott
+//   SIGNED_UP_ONBOARDING -> Signed Up For Onboarding
+//   ONBOARDED            -> Going Through Onboarding
+//   PLACED               -> Placed
 enum InterestStatus {
   OPEN
   IN_PROGRESS
+  SIGNED_UP_ONBOARDING
   ONBOARDED
   PLACED
   DECLINED
