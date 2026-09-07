@@ -59,6 +59,7 @@ export interface Profile {
   churchAffiliation?: string | null;
   phone?: string | null;
   email?: string | null;
+  secondaryEmail?: string | null;
   address?: string | null;
   maritalStatus?: string | null;
   occupation?: string | null;

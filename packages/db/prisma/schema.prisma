@@ -23,6 +23,10 @@ model Person {
   lastName          String
   preferredName     String?
   email             String?        @unique
+  /// A second address for people who give out a work and a personal one. Not
+  /// unique and never used for identity or login — `email` stays the one the
+  /// app matches Fillout submissions against.
+  secondaryEmail    String?
   phone             String?
   address           String?
   maritalStatus     MaritalStatus?

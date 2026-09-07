@@ -109,6 +109,7 @@ function serialize(
     'churchAffiliation',
     'phone',
     'email',
+    'secondaryEmail',
     'address',
     'maritalStatus',
     'occupation',
@@ -262,6 +263,8 @@ export function registerPeopleRoutes(app: FastifyInstance) {
     preferredName: z.string().nullable().optional(),
     // Every field the profile's Details panel shows is editable from it.
     email: z.string().email().nullable().optional(),
+    // Contact only — not unique, never used to match a Fillout submission.
+    secondaryEmail: z.union([z.string().email(), z.literal('')]).nullable().optional(),
     phone: z.string().nullable().optional(),
     address: z.string().nullable().optional(),
     bio: z.string().nullable().optional(),

@@ -28,6 +28,7 @@ const DETAIL_FIELDS = [
   { key: 'status', label: 'Status', kind: 'status', adminOnly: true },
   { key: 'phone', label: 'Phone', kind: 'tel' },
   { key: 'email', label: 'Email', kind: 'email' },
+  { key: 'secondaryEmail', label: 'Second Email', kind: 'email' },
   { key: 'occupation', label: 'Occupation', kind: 'text' },
   { key: 'maritalStatus', label: 'Marital Status', kind: 'marital' },
   { key: 'address', label: 'Address', kind: 'text' },
@@ -78,7 +79,9 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
   const isSelf = user?.personId === id;
   const isAdmin = user?.role === 'ADMIN';
   // The server omits fields the viewer may not see, so key presence = permission.
-  const hasContact = Boolean(person.phone || person.email || person.address);
+  const hasContact = Boolean(
+    person.phone || person.email || person.secondaryEmail || person.address,
+  );
   const canEdit = isAdmin || isSelf;
   const ledGroups = (person.groups ?? []).filter((g) => g.role !== 'DISCIPLE');
 
@@ -339,6 +342,13 @@ export default function PersonPage({ params }: { params: Promise<{ id: string }>
                       long address scrolls sideways rather than being cut. */}
                   <span className="block overflow-x-auto whitespace-nowrap text-[15px]">
                     {person.email}
+                  </span>
+                </Row>
+              )}
+              {person.secondaryEmail && (
+                <Row label="Second Email">
+                  <span className="block overflow-x-auto whitespace-nowrap text-[15px]">
+                    {person.secondaryEmail}
                   </span>
                 </Row>
               )}

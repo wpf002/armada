@@ -18,6 +18,7 @@ export type PersonField =
   // contact (scoped)
   | 'phone'
   | 'email'
+  | 'secondaryEmail'
   | 'address'
   // extended profile (self + admin only)
   | 'maritalStatus'
@@ -40,7 +41,12 @@ export const DIRECTORY_FIELDS: readonly PersonField[] = [
 
 /** Phone/email/address — self, admin, the subject's group leader, or a mentor
  *  of the subject (own mentees + their groups). */
-export const CONTACT_FIELDS: readonly PersonField[] = ['phone', 'email', 'address'];
+export const CONTACT_FIELDS: readonly PersonField[] = [
+  'phone',
+  'email',
+  'secondaryEmail',
+  'address',
+];
 
 /** Marital status, occupation, bio, status, and intake answers — self + admin. */
 export const EXTENDED_PROFILE_FIELDS: readonly PersonField[] = [
